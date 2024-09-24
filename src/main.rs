@@ -1,8 +1,9 @@
+mod page;
+mod util;
+
 use anyhow::{bail, Result};
+use page::FirstPage;
 use std::fs::File;
-use std::io::prelude::*;
-use std::os::unix::fs::FileExt;
-use std::u16;
 
 fn main() -> Result<()> {
     // Parse arguments
@@ -18,27 +19,30 @@ fn main() -> Result<()> {
     match command.as_str() {
         ".dbinfo" => {
             let mut file = File::open(&args[1])?;
-            let mut header = [0; 100];
-            file.read_exact(&mut header)?;
 
-            // The page size is stored at the 16th byte offset, using 2 bytes in big-endian order
-            let page_size = u16::from_be_bytes([header[16], header[17]]);
+            let page = FirstPage::from_file(&mut file)?;
+            println!("database page size: {}", page.db_header.page_size);
+            println!("page type: {:#?}", page.page_header.page_type);
+            println!("number of tables: {}", page.page_header.num_cells);
+            println!("cell pointer array: {:#?}", page.cell_pointer_array);
+        }
+        ".tables" => {
+            let mut file = File::open(&args[1])?;
 
-            // You can use print statements as follows for debugging, they'll be visible when running tests.
-            println!("Logs from your program will appear here!");
+            let page = FirstPage::from_file(&mut file)?;
+            //println!("database page size: {}", page.db_header.page_size);
+            //println!("page type: {:#?}", page.page_header.page_type);
+            //println!("number of pages: {}", page.page_header.num_cells);
+            //println!("cell pointer array: {:#?}", page.cell_pointer_array);
 
-            // Uncomment this block to pass the first stage
-            println!("database page size: {}", page_size);
-
-            let mut page_header = [0; 8];
-            file.read_exact(&mut page_header)?;
-            println!("page is leaf: {}", page_header[0] == 13);
-            let number_of_cells = u16::from_be_bytes([page_header[3], page_header[4]]);
-
-            let mut cell_pointer_bytes = vec![0; (number_of_cells * 2).into()];
-            file.read_exact(&mut cell_pointer_bytes)?;
-
-            println!("number of tables: {}", number_of_cells);
+            for c in page.cells {
+                if let Some(table) = c.record_body.strings.get(2) {
+                    if table != "sqlite_sequence" {
+                        print!("{table} ");
+                    }
+                }
+            }
+            println!();
         }
         _ => bail!("Missing or invalid command passed: {}", command),
     }
