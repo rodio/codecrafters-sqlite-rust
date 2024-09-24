@@ -35,6 +35,8 @@ fn main() -> Result<()> {
             //println!("number of pages: {}", page.page_header.num_cells);
             //println!("cell pointer array: {:#?}", page.cell_pointer_array);
 
+            println!("cells: {:#?}", page.cells);
+
             for c in page.cells {
                 if let Some(table) = c.record_body.strings.get(2) {
                     if table != "sqlite_sequence" {
