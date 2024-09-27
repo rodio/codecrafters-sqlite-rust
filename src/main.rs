@@ -2,7 +2,7 @@ mod page;
 mod util;
 
 use anyhow::{bail, Result};
-use page::FirstPage;
+use page::{Column, FirstPage, Page};
 use std::fs::File;
 
 fn main() -> Result<()> {
@@ -20,33 +20,67 @@ fn main() -> Result<()> {
         ".dbinfo" => {
             let mut file = File::open(&args[1])?;
 
-            let page = FirstPage::from_file(&mut file)?;
-            println!("database page size: {}", page.db_header.page_size);
-            println!("page type: {:#?}", page.page_header.page_type);
-            println!("number of tables: {}", page.page_header.num_cells);
-            println!("cell pointer array: {:#?}", page.cell_pointer_array);
+            let first_page = FirstPage::from_file(&mut file)?;
+            println!("database page size: {}", first_page.db_header.page_size);
+            println!("page type: {:#?}", first_page.page.page_header.page_type);
+            println!(
+                "number of tables: {}",
+                first_page.page.page_header.num_cells
+            );
+            println!(
+                "cell pointer array: {:#?}",
+                first_page.page.cell_pointer_array
+            );
         }
         ".tables" => {
             let mut file = File::open(&args[1])?;
 
-            let page = FirstPage::from_file(&mut file)?;
+            let first_page = FirstPage::from_file(&mut file)?;
             //println!("database page size: {}", page.db_header.page_size);
             //println!("page type: {:#?}", page.page_header.page_type);
             //println!("number of pages: {}", page.page_header.num_cells);
             //println!("cell pointer array: {:#?}", page.cell_pointer_array);
+            //println!("cells: {:#?}", first_page.page.cells);
 
-            println!("cells: {:#?}", page.cells);
-
-            for c in page.cells {
-                if let Some(table) = c.record_body.strings.get(2) {
-                    if table != "sqlite_sequence" {
-                        print!("{table} ");
+            for c in &first_page.page.cells {
+                if let Some(table) = c.record_body.columns.get(2) {
+                    if *table != Column::Str(String::from("sqlite_sequence")) {
+                        print!("{} ", table);
                     }
                 }
             }
             println!();
         }
-        _ => bail!("Missing or invalid command passed: {}", command),
+        _ => {
+            let query = &args[2];
+            let table_name = query.split(" ").last().unwrap();
+            let mut file = File::open(&args[1])?;
+            let first_page = FirstPage::from_file(&mut file)?;
+            for c in first_page.page.cells {
+                if let Some(table) = c.record_body.columns.get(2) {
+                    match table {
+                        Column::Str(s) => {
+                            if s == table_name {
+                                if let Some(root_page) = c.record_body.columns.get(3) {
+                                    match root_page {
+                                        Column::I8(i) => {
+                                            let page = Page::from_file(
+                                                &mut file,
+                                                (*i - 1) as u64
+                                                    * first_page.db_header.page_size as u64,
+                                            );
+                                            println!("{}", page.unwrap().page_header.num_cells)
+                                        }
+                                        Column::Str(_) => todo!(),
+                                    }
+                                }
+                            }
+                        }
+                        Column::I8(_) => todo!(),
+                    }
+                }
+            }
+        }
     }
 
     Ok(())

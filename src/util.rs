@@ -1,4 +1,4 @@
-use std::{u8, usize};
+use crate::page::ColumnType;
 
 pub fn read_varint(bytes: &[u8]) -> (i64, usize) {
     let mut trimmed_bytes: Vec<u8> = Vec::new();
@@ -34,20 +34,20 @@ pub fn read_varint(bytes: &[u8]) -> (i64, usize) {
     (i64::from_be_bytes(res), trimmed_bytes.len())
 }
 
-pub fn get_content_size(input: i64) -> usize {
+pub fn get_content_size_type(input: i64) -> (usize, ColumnType) {
     if input == 1 {
-        return 1;
+        return (1, ColumnType::I8);
     }
 
-    if input >= 12 && input % 2 == 0 {
-        return ((input - 12) / 2).try_into().unwrap();
-    }
+    //if input >= 12 && input % 2 == 0 {
+    //    return (((input - 12) / 2).try_into().unwrap(), ColumnType::Blob);
+    //}
 
     if input >= 13 && input % 2 == 1 {
-        return ((input - 13) / 2).try_into().unwrap();
+        return (((input - 13) / 2).try_into().unwrap(), ColumnType::Str);
     }
 
-    0
+    (0, ColumnType::I8)
 }
 
 #[cfg(test)]
