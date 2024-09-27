@@ -56,28 +56,24 @@ fn main() -> Result<()> {
             let table_name = query.split(" ").last().unwrap();
             let mut file = File::open(&args[1])?;
             let first_page = FirstPage::from_file(&mut file)?;
+
             for c in first_page.page.cells {
-                if let Some(table) = c.record_body.columns.get(2) {
-                    match table {
-                        Column::Str(s) => {
-                            if s == table_name {
-                                if let Some(root_page) = c.record_body.columns.get(3) {
-                                    match root_page {
-                                        Column::I8(i) => {
-                                            let page = Page::from_file(
-                                                &mut file,
-                                                (*i - 1) as u64
-                                                    * first_page.db_header.page_size as u64,
-                                            );
-                                            println!("{}", page.unwrap().page_header.num_cells)
-                                        }
-                                        Column::Str(_) => todo!(),
-                                    }
-                                }
-                            }
+                let table = c.record_body.columns.get(2);
+                if let Some(Column::Str(table)) = table {
+                    if table == table_name {
+                        let root_page = c.record_body.columns.get(3);
+                        if let Some(Column::I8(root_page)) = root_page {
+                            let page = Page::from_file(
+                                &mut file,
+                                (*root_page - 1) as u64 * first_page.db_header.page_size as u64,
+                            );
+                            println!("{}", page.unwrap().page_header.num_cells);
+                        } else {
+                            todo!("can't get root page");
                         }
-                        Column::I8(_) => todo!(),
                     }
+                } else {
+                    todo!("can't get table name");
                 }
             }
         }

@@ -35,6 +35,9 @@ pub fn read_varint(bytes: &[u8]) -> (i64, usize) {
 }
 
 pub fn get_content_size_type(input: i64) -> (usize, ColumnType) {
+    if input == 0 {
+        return (0, ColumnType::Null);
+    }
     if input == 1 {
         return (1, ColumnType::I8);
     }

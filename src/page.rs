@@ -122,9 +122,6 @@ impl Page {
 
             let mut record_body = RecordBody::new();
             for t in &record_header.column_types {
-                if *t == 0 {
-                    continue;
-                }
                 let (size, typ) = get_content_size_type(*t);
                 let mut buf: Vec<u8> = vec![0; size];
                 file.read_exact_at(buf.as_mut_slice(), pointer + varint_offset as u64)?;
@@ -135,10 +132,10 @@ impl Page {
                         record_body.columns.push(Column::Str(s));
                     }
                     ColumnType::I8 => {
-                        let byte = [buf.as_slice()[0]];
-                        let val = i8::from_be_bytes(byte);
+                        let val = i8::from_be_bytes([buf.as_slice()[0]]);
                         record_body.columns.push(Column::I8(val));
                     }
+                    ColumnType::Null => (),
                 }
             }
 
@@ -218,6 +215,7 @@ pub type I8 = i8;
 pub enum ColumnType {
     Str,
     I8,
+    Null,
 }
 
 #[derive(Debug, PartialEq)]
