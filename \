@@ -53,7 +53,7 @@ fn main() -> Result<()> {
             }
             println!();
         }
-        s if s.to_lowercase().starts_with("select count") => {
+        s if s.starts_with("SELECT COUNT") => {
             let query = &args[2];
             let table_name = query.split(" ").last().unwrap();
             let mut file = File::open(&args[1])?;
@@ -79,13 +79,11 @@ fn main() -> Result<()> {
                 }
             }
         }
-        s if s.to_lowercase().starts_with("select")
-            && !s.to_lowercase().starts_with("select count") =>
-        {
-            let re = Regex::new(r"(?i)SELECT (?P<column>\w+) FROM (?P<table>\w+)").unwrap();
+        s if s.starts_with("SELECT") && !s.starts_with("SELECT COUNT") => {
+            let re = Regex::new(r"SELECT (?P<column>\w+) FROM (?P<table>\w+)").unwrap();
             let caps = re.captures(s).unwrap();
-            //println!("table: {}", &caps["table"]);
-            //println!("column: {}", &caps["column"]);
+            println!("table: {}", &caps["table"]);
+            println!("column: {}", &caps["column"]);
 
             let mut file = File::open(&args[1])?;
             let first_page = FirstPage::from_file(&mut file)?;
@@ -94,7 +92,7 @@ fn main() -> Result<()> {
                 if *page_name == Column::Str((caps["table"]).to_string()) {
                     let column_order;
                     if let Some(Column::Str(sql)) = c.record_body.columns.get(4) {
-                        column_order = get_column_order(sql, &caps["column"]).unwrap().unwrap() - 1;
+                        column_order = get_column_order(sql, &caps["column"]).unwrap();
                     } else {
                         todo!("can't find column");
                     };
@@ -105,10 +103,9 @@ fn main() -> Result<()> {
                             (*root_page - 1) as u64 * first_page.db_header.page_size as u64,
                         )?;
                         for cell in page.cells {
-                            if let Some(Column::Str(val)) =
-                                cell.record_body.columns.get(column_order)
-                            {
-                                println!("{val}");
+                            if Some(Column::Str(val)) = cell.record_body.columns.get(column_order),
+                            )) {
+                                println!("val");
                             }
                         }
                     }
