@@ -1,8 +1,3 @@
-use anyhow::{anyhow, Result};
-use core::str;
-
-use regex::Regex;
-
 use crate::page::ColumnType;
 
 pub fn read_varint(bytes: &[u8]) -> (i64, usize) {
@@ -56,27 +51,6 @@ pub fn get_content_size_type(input: i64) -> (usize, ColumnType) {
     }
 
     (0, ColumnType::I8)
-}
-
-pub fn get_column_order(sql: &str, column: &str) -> Result<Option<usize>> {
-    //println!("parsing {sql} {column}");
-    let re = Regex::new(r"CREATE TABLE \w+\n?\s?\(\n?(?P<columns>(?:\n|.)+)\)").unwrap();
-    let caps = re.captures(sql).ok_or(anyhow!("can't parse columns"))?;
-
-    let columns = &caps["columns"];
-    for (i, mut c) in columns.split(",").enumerate() {
-        c = c
-            .trim()
-            .split(" ")
-            .next()
-            .ok_or(anyhow!("bad format of the column {c}"))?;
-
-        if c == column {
-            return Ok(Some(i));
-        }
-    }
-
-    Err(anyhow!("no such column"))
 }
 
 #[cfg(test)]

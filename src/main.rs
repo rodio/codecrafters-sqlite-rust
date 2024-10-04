@@ -5,7 +5,6 @@ use anyhow::{bail, Result};
 use page::{Column, FirstPage, Page};
 use regex::Regex;
 use std::fs::File;
-use util::get_column_order;
 
 fn main() -> Result<()> {
     // Parse arguments
@@ -84,37 +83,26 @@ fn main() -> Result<()> {
         {
             let re = Regex::new(r"(?i)SELECT (?P<column>\w+) FROM (?P<table>\w+)").unwrap();
             let caps = re.captures(s).unwrap();
-            //println!("table: {}", &caps["table"]);
-            //println!("column: {}", &caps["column"]);
+
+            let table_name = caps["table"].to_string();
+            let column_name = caps["column"].to_string();
 
             let mut file = File::open(&args[1])?;
             let first_page = FirstPage::from_file(&mut file)?;
-            for c in first_page.page.cells {
-                let page_name = c.record_body.columns.get(2).unwrap();
-                if *page_name == Column::Str((caps["table"]).to_string()) {
-                    let column_order;
-                    if let Some(Column::Str(sql)) = c.record_body.columns.get(4) {
-                        column_order = get_column_order(sql, &caps["column"]).unwrap().unwrap() - 1;
-                    } else {
-                        todo!("can't find column");
-                    };
-                    let root_page = c.record_body.columns.get(3);
-                    if let Some(Column::I8(root_page)) = root_page {
-                        let page = Page::from_file(
-                            &mut file,
-                            (*root_page - 1) as u64 * first_page.db_header.page_size as u64,
-                        )?;
-                        for cell in page.cells {
-                            if let Some(Column::Str(val)) =
-                                cell.record_body.columns.get(column_order)
-                            {
-                                println!("{val}");
-                            }
-                        }
-                    }
+
+            let table_info = first_page.table_infos.get(&table_name).unwrap();
+            let column_order = table_info.column_orders.get(&column_name).unwrap();
+
+            let page = Page::from_file(
+                &mut file,
+                (table_info.root_page_num - 1) as u64 * first_page.db_header.page_size as u64,
+            )?;
+
+            for cell in page.cells {
+                if let Some(Column::Str(val)) = cell.record_body.columns.get(*column_order) {
+                    println!("{val}");
                 }
             }
-            //println!("{:#?}", first_page.page.cells);
         }
         _ => bail!("Missing or invalid command passed: {}", command),
     }

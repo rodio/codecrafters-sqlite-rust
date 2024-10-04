@@ -1,4 +1,6 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use regex::Regex;
+use std::collections::HashMap;
 use std::os::unix::fs::FileExt;
 use std::{fmt::Display, fs::File};
 
@@ -67,6 +69,7 @@ pub struct Page {
 
 impl Page {
     pub fn from_file(file: &mut File, page_offset: u64) -> Result<Self> {
+        println!("getting page at offset {page_offset}");
         let page_header = PageHeader::from_file(file, page_offset)?;
 
         let mut page_data_offset = match page_header.page_type {
@@ -155,11 +158,16 @@ impl Page {
     }
 }
 
+#[derive(Debug)]
+pub struct TableInfo {
+    pub root_page_num: I8,
+    pub column_orders: HashMap<String, usize>,
+}
+
 pub struct FirstPage {
     pub db_header: DbHeader,
-    pub page: Page, //pub page_header: PageHeader,
-                    //pub cell_pointer_array: Vec<u16>,
-                    //pub cells: Vec<Cell>,
+    pub page: Page,
+    pub table_infos: HashMap<String, TableInfo>, // TableName->TableInfo
 }
 
 impl FirstPage {
@@ -167,8 +175,111 @@ impl FirstPage {
         let db_header = DbHeader::from_file(file)?;
         let page = Page::from_file(file, 100)?;
 
-        Ok(Self { db_header, page })
+        let mut table_infos = HashMap::new();
+        for cell in &page.cells {
+            let page_name_col = cell
+                .record_body
+                .columns
+                .get(2)
+                .ok_or(anyhow!("can't get page name from cell 2"))?;
+            let table_name = match page_name_col {
+                Column::Str(s) => s.to_string(),
+                _ => return Err(anyhow!("wrong format of page name column")),
+            };
+
+            let root_page_number_col = cell
+                .record_body
+                .columns
+                .get(3)
+                .ok_or(anyhow!("can't get root page num from cell 3"))?;
+            let root_page_num = match root_page_number_col {
+                Column::I8(i) => *i,
+                _ => return Err(anyhow!("wrong format of root page column")),
+            };
+
+            let sql_col = cell
+                .record_body
+                .columns
+                .get(4)
+                .ok_or(anyhow!("can't get sql num from cell 4"))?;
+            let sql = match sql_col {
+                Column::Str(s) => s,
+                _ => return Err(anyhow!("wrong format of sql column")),
+            };
+
+            let re = Regex::new(r"CREATE TABLE \w+\n?\s?\(\n?(?P<columns>(?:\n|.)+)\)").unwrap();
+            let caps = re.captures(sql).ok_or(anyhow!("can't parse columns"))?;
+            let columns = &caps["columns"];
+            let mut column_orders = HashMap::new();
+            for (i, mut c) in columns.split(",").enumerate() {
+                c = c
+                    .trim()
+                    .split(" ")
+                    .next()
+                    .ok_or(anyhow!("bad format of the column {c}"))?;
+
+                column_orders.insert(c.to_string(), i - 1);
+            }
+            let table_info = TableInfo {
+                root_page_num,
+                column_orders,
+            };
+            table_infos.insert(table_name, table_info);
+        }
+        Ok(Self {
+            db_header,
+            page,
+            table_infos,
+        })
     }
+
+    //pub fn get_root_page(&self, table_name: String, mut file: &mut File) -> Result<Page> {
+    //    let value = Column::Str(table_name);
+    //    for c in &self.page.cells {
+    //        let page_name = c.record_body.columns.get(2).unwrap();
+    //        if *page_name == value {
+    //            let root_page_number = c.record_body.columns.get(3);
+    //            if let Some(Column::I8(root_page_number)) = root_page_number {
+    //                let page = Page::from_file(
+    //                    &mut file,
+    //                    (*root_page_number - 1) as u64 * self.db_header.page_size as u64,
+    //                )?;
+    //                return Ok(page);
+    //            }
+    //        }
+    //    }
+    //
+    //    Err(anyhow!("no such table"))
+    //}
+
+    //pub fn get_column_order(&self, table_name: String, column: String) -> Result<usize> {
+    //    //println!("parsing {sql} {column}");
+    //    let re = Regex::new(r"CREATE TABLE \w+\n?\s?\(\n?(?P<columns>(?:\n|.)+)\)").unwrap();
+    //
+    //    let value = Column::Str(table_name);
+    //    for c in &self.page.cells {
+    //        let page_name = c.record_body.columns.get(2).unwrap();
+    //        if *page_name == value {
+    //            if let Some(Column::Str(sql)) = c.record_body.columns.get(4) {
+    //                let caps = re.captures(sql).ok_or(anyhow!("can't parse columns"))?;
+    //                let columns = &caps["columns"];
+    //                for (i, mut c) in columns.split(",").enumerate() {
+    //                    c = c
+    //                        .trim()
+    //                        .split(" ")
+    //                        .next()
+    //                        .ok_or(anyhow!("bad format of the column {c}"))?;
+    //
+    //                    if c == column {
+    //                        return Ok(i - 1);
+    //                    }
+    //                }
+    //            }
+    //        }
+    //    }
+    //
+    //    Err(anyhow!("no such column"))
+    //}
 }
 
 #[derive(Debug)]
