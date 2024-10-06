@@ -67,6 +67,7 @@ fn main() -> Result<()> {
                             let page = Page::from_file(
                                 &mut file,
                                 (*root_page - 1) as u64 * first_page.db_header.page_size as u64,
+                                None,
                             );
                             println!("{}", page.unwrap().page_header.num_cells);
                         } else {
@@ -81,27 +82,34 @@ fn main() -> Result<()> {
         s if s.to_lowercase().starts_with("select")
             && !s.to_lowercase().starts_with("select count") =>
         {
-            let re = Regex::new(r"(?i)SELECT (?P<column>\w+) FROM (?P<table>\w+)").unwrap();
+            let re = Regex::new(r"(?i)SELECT (?P<columns>[,|\s|\w]+) FROM (?P<table>\w+)").unwrap();
             let caps = re.captures(s).unwrap();
 
             let table_name = caps["table"].to_string();
-            let column_name = caps["column"].to_string();
+            let column_name = caps["columns"].to_string();
+            let column_names: Vec<String> = column_name
+                .split(",")
+                .map(|c| c.trim().to_string())
+                .collect();
 
             let mut file = File::open(&args[1])?;
             let first_page = FirstPage::from_file(&mut file)?;
-
             let table_info = first_page.table_infos.get(&table_name).unwrap();
-            let column_order = table_info.column_orders.get(&column_name).unwrap();
 
             let page = Page::from_file(
                 &mut file,
                 (table_info.root_page_num - 1) as u64 * first_page.db_header.page_size as u64,
+                None,
             )?;
-
-            for cell in page.cells {
-                if let Some(Column::Str(val)) = cell.record_body.columns.get(*column_order) {
-                    println!("{val}");
+            for cell in &page.cells {
+                for (i, column_name) in column_names.iter().enumerate() {
+                    let order = first_page.table_infos[&table_name].column_orders[column_name];
+                    print!("{}", cell.record_body.columns[order]);
+                    if i != column_names.len() - 1 {
+                        print!("|");
+                    }
                 }
+                println!();
             }
         }
         _ => bail!("Missing or invalid command passed: {}", command),

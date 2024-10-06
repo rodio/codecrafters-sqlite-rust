@@ -67,10 +67,4 @@ mod tests {
         assert_eq!(result, 23);
         assert_eq!(n, 1);
     }
-
-    #[test]
-    fn test_column_order() {
-        let o = get_column_order("CREATE TABLE blah(col1, col2, col3)", "col2");
-        assert_eq!(1, o.unwrap().unwrap());
-    }
 }

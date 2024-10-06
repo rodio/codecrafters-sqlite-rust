@@ -13,7 +13,8 @@ pub struct DbHeader {
 impl DbHeader {
     fn from_file(file: &mut File) -> Result<DbHeader> {
         let mut db_header_bytes = [0; 100];
-        file.read_exact_at(&mut db_header_bytes, 0)?;
+        file.read_exact_at(&mut db_header_bytes, 0)
+            .map_err(|e| anyhow!("can't read 100 db header bytes from file: {e}"))?;
         let page_size = u16::from_be_bytes([db_header_bytes[16], db_header_bytes[17]]);
         //let text_encoding = u32::from_be_bytes([
         //    db_header_bytes[56],
@@ -42,14 +43,15 @@ pub struct PageHeader {
 impl PageHeader {
     fn from_file(file: &mut File, offset: u64) -> Result<PageHeader> {
         let mut page_header = [0; 8];
-        file.read_exact_at(&mut page_header, offset)?;
+        file.read_exact_at(&mut page_header, offset)
+            .map_err(|e| anyhow!("cant read 8 bytes of page header from file: {e}"))?;
         let page_type_byte = page_header[0];
         let page_type = match page_type_byte {
             0x02 => PageType::InteriorIndex,
             0x05 => PageType::InteriorTable,
             0x0a => PageType::LeafIndex,
             0x0d => PageType::LeafTable,
-            _ => return Err(anyhow::anyhow!("wrong page type")),
+            _ => return Err(anyhow!("wrong page type byte {}", page_type_byte)),
         };
 
         let num_cells = u16::from_be_bytes([page_header[3], page_header[4]]);
@@ -68,44 +70,52 @@ pub struct Page {
 }
 
 impl Page {
-    pub fn from_file(file: &mut File, page_offset: u64) -> Result<Self> {
-        println!("getting page at offset {page_offset}");
-        let page_header = PageHeader::from_file(file, page_offset)?;
+    pub fn from_file(
+        file: &mut File,
+        page_offset: u64,
+        page_header_offset: Option<u64>,
+    ) -> Result<Self> {
+        let page_header_offset = page_header_offset.unwrap_or(0);
+        let page_header = PageHeader::from_file(file, page_offset + page_header_offset)
+            .map_err(|e| anyhow!("can't read page header from file at page offset {page_offset}, page header offset {page_header_offset}: {e}"))?;
 
-        let mut page_data_offset = match page_header.page_type {
-            PageType::LeafTable | PageType::LeafIndex => page_offset + 8,
-            PageType::InteriorTable | PageType::InteriorIndex => page_offset + 12,
+        let page_data_offset = match page_header.page_type {
+            PageType::LeafTable | PageType::LeafIndex => page_offset + page_header_offset + 8,
+            PageType::InteriorTable | PageType::InteriorIndex => {
+                page_offset + page_header_offset + 12
+            }
         };
 
+        let mut cell_offset = page_data_offset;
         let mut cell_pointer_array = Vec::with_capacity(page_header.num_cells.into());
-        for _ in 0..page_header.num_cells {
+        for i in 0..page_header.num_cells {
             let mut buf = [0_u8; 2];
-            file.read_exact_at(&mut buf, page_data_offset)?;
+            file.read_exact_at(&mut buf, cell_offset)
+                .map_err(|e| anyhow!("can't read cell {i} at offset {cell_offset}: {e}"))?;
             cell_pointer_array.push(u16::from_be_bytes(buf));
-            page_data_offset += 2;
+            cell_offset += 2;
         }
 
         let mut cells = Vec::with_capacity(page_header.num_cells.into());
         for pointer in &cell_pointer_array {
             let mut pointer = *pointer as u64;
-            if page_offset != 100 {
-                // todo
-                // not the first page
-                pointer += page_offset;
-            }
+            pointer += page_offset;
             let mut buf = [0_u8, 9]; // for varints
 
             // size:
-            file.read_exact_at(&mut buf, pointer)?;
+            file.read_exact_at(&mut buf, pointer)
+                .map_err(|e| anyhow!("can't read cell size: {e} at pointer {pointer}"))?;
             let (size, mut varint_offset) = read_varint(&buf);
 
             // rowid:
-            file.read_exact_at(&mut buf, pointer + varint_offset as u64)?;
+            file.read_exact_at(&mut buf, pointer + varint_offset as u64)
+                .map_err(|e| anyhow!("can't read cell rowid: {e} at pointer {pointer}"))?;
             let (rowid, o) = read_varint(&buf);
             varint_offset += o;
 
             // header_size:
-            file.read_exact_at(&mut buf, pointer + varint_offset as u64)?;
+            file.read_exact_at(&mut buf, pointer + varint_offset as u64)
+                .map_err(|e| anyhow!("can't read cell header size: {e} at pointer {pointer}"))?;
             let (record_header_size, record_header_size_bytes) = read_varint(&buf);
             varint_offset += record_header_size_bytes;
 
@@ -161,6 +171,7 @@ impl Page {
 #[derive(Debug)]
 pub struct TableInfo {
     pub root_page_num: I8,
+    // column_name -> order
     pub column_orders: HashMap<String, usize>,
 }
 
@@ -173,7 +184,10 @@ pub struct FirstPage {
 impl FirstPage {
     pub fn from_file(file: &mut File) -> Result<FirstPage> {
         let db_header = DbHeader::from_file(file)?;
-        let page = Page::from_file(file, 100)?;
+        let page = match Page::from_file(file, 0, Some(100)) {
+            Ok(p) => p,
+            Err(e) => return Err(anyhow!("error reading first page from file: {e}")),
+        };
 
         let mut table_infos = HashMap::new();
         for cell in &page.cells {
