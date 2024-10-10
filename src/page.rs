@@ -65,7 +65,7 @@ impl PageHeader {
 #[derive(Debug)]
 pub struct Page {
     pub page_header: PageHeader,
-    pub cell_pointer_array: Vec<u16>,
+    //pub cell_pointer_array: Vec<u16>,
     pub cells: Vec<Cell>,
 }
 
@@ -162,7 +162,7 @@ impl Page {
 
         Ok(Page {
             page_header,
-            cell_pointer_array,
+            //cell_pointer_array,
             cells,
         })
     }

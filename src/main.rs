@@ -1,9 +1,9 @@
 mod page;
+mod query;
 mod util;
 
 use anyhow::{bail, Result};
 use page::{Column, FirstPage, Page};
-use regex::Regex;
 use std::fs::File;
 
 fn main() -> Result<()> {
@@ -23,14 +23,9 @@ fn main() -> Result<()> {
 
             let first_page = FirstPage::from_file(&mut file)?;
             println!("database page size: {}", first_page.db_header.page_size);
-            println!("page type: {:#?}", first_page.page.page_header.page_type);
             println!(
                 "number of tables: {}",
                 first_page.page.page_header.num_cells
-            );
-            println!(
-                "cell pointer array: {:#?}",
-                first_page.page.cell_pointer_array
             );
         }
         ".tables" => {
@@ -82,19 +77,14 @@ fn main() -> Result<()> {
         s if s.to_lowercase().starts_with("select")
             && !s.to_lowercase().starts_with("select count") =>
         {
-            let re = Regex::new(r"(?i)SELECT (?P<columns>[,|\s|\w]+) FROM (?P<table>\w+)").unwrap();
-            let caps = re.captures(s).unwrap();
-
-            let table_name = caps["table"].to_string();
-            let column_name = caps["columns"].to_string();
-            let column_names: Vec<String> = column_name
-                .split(",")
-                .map(|c| c.trim().to_string())
-                .collect();
+            let select_query = query::SelectQuery::from_query_string(s)?;
 
             let mut file = File::open(&args[1])?;
             let first_page = FirstPage::from_file(&mut file)?;
-            let table_info = first_page.table_infos.get(&table_name).unwrap();
+            let table_info = first_page
+                .table_infos
+                .get(&select_query.table_name)
+                .unwrap();
 
             let page = Page::from_file(
                 &mut file,
@@ -102,14 +92,34 @@ fn main() -> Result<()> {
                 None,
             )?;
             for cell in &page.cells {
-                for (i, column_name) in column_names.iter().enumerate() {
-                    let order = first_page.table_infos[&table_name].column_orders[column_name];
-                    print!("{}", cell.record_body.columns[order]);
-                    if i != column_names.len() - 1 {
-                        print!("|");
+                let mut row_string = String::new();
+                let mut write_row = true;
+                if select_query.where_column.is_some() {
+                    write_row = false;
+                }
+                for (i, column_name) in select_query.columns.iter().enumerate() {
+                    let order =
+                        first_page.table_infos[&select_query.table_name].column_orders[column_name];
+                    let column = &cell.record_body.columns[order];
+
+                    let column_value = match column {
+                        Column::Str(s) => s,
+                        _ => todo!(),
+                    };
+                    if select_query.where_column == Some(column_name.to_string())
+                        && select_query.where_value == Some(column_value.to_string())
+                    {
+                        write_row = true;
+                    }
+                    row_string.push_str(column_value);
+
+                    if i != select_query.columns.len() - 1 {
+                        row_string.push('|');
                     }
                 }
-                println!();
+                if write_row {
+                    println!("{row_string}");
+                }
             }
         }
         _ => bail!("Missing or invalid command passed: {}", command),
