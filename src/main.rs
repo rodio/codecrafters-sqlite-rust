@@ -5,6 +5,7 @@ mod util;
 
 use anyhow::{bail, Result};
 use db::Db;
+use page::Page;
 use std::fs::File;
 
 fn main() -> Result<()> {
@@ -52,7 +53,11 @@ fn main() -> Result<()> {
                     let root_page = table_info.root_page_num;
                     let page =
                         db.get_page((root_page - 1) as u64 * db.header.page_size as u64, None)?;
-                    println!("{}", page.page_header.num_cells);
+                    let leaf_page = match page {
+                        Page::LeafTable(p) => p,
+                        _ => todo!(),
+                    };
+                    println!("{}", leaf_page.page_header.num_cells);
                 }
             }
         }
@@ -64,16 +69,20 @@ fn main() -> Result<()> {
             let file = File::open(&args[1])?;
             let db = Db::new(file)?;
 
-            if let Ok(rows) = db.execute_select(select_query) {
-                for row in rows {
-                    for (i, column) in row.iter().enumerate() {
-                        print!("{}", column);
-                        if i != row.len() - 1 {
-                            print!("|");
+            match db.execute_select(select_query) {
+                Ok(rows) => {
+                    for row in rows {
+                        for (i, column) in row.iter().enumerate() {
+                            print!("{}", column);
+                            if i != row.len() - 1 {
+                                print!("|");
+                            } else {
+                                println!();
+                            }
                         }
                     }
-                    println!();
                 }
+                Err(e) => bail!(e),
             }
         }
         _ => bail!("Missing or invalid command passed: {}", command),

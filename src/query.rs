@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+
 use anyhow::{anyhow, Result};
 use regex::Regex;
 
 #[derive(Debug)]
 pub struct SelectQuery {
     pub table_name: String,
-    pub columns: Vec<String>,
+    pub columns: HashMap<String, usize>,
     pub where_column: Option<String>,
     pub where_value: Option<String>,
 }
@@ -20,13 +22,20 @@ impl SelectQuery {
             .as_str()
             .to_string();
 
-        let columns = caps
+        let column_caps = caps
             .name("columns")
             .ok_or(anyhow!("can't get table name from query string"))?
             .as_str()
             .to_string();
 
-        let columns: Vec<String> = columns.split(",").map(|c| c.trim().to_string()).collect();
+        let mut columns: HashMap<String, usize> = Default::default();
+        for (i, c) in column_caps
+            .split(",")
+            .map(|c| c.trim().to_string())
+            .enumerate()
+        {
+            columns.insert(c, i);
+        }
 
         let condition = caps.name("condition");
 

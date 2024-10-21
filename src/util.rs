@@ -38,8 +38,17 @@ pub fn get_content_size_type(input: i64) -> (usize, ColumnType) {
     if input == 0 {
         return (0, ColumnType::Null);
     }
+
     if input == 1 {
         return (1, ColumnType::I8);
+    }
+
+    if input == 2 {
+        return (2, ColumnType::I16);
+    }
+
+    if input == 9 {
+        return (0, ColumnType::One);
     }
 
     //if input >= 12 && input % 2 == 0 {
@@ -50,7 +59,7 @@ pub fn get_content_size_type(input: i64) -> (usize, ColumnType) {
         return (((input - 13) / 2).try_into().unwrap(), ColumnType::Str);
     }
 
-    (0, ColumnType::I8)
+    todo!("column type {input}")
 }
 
 #[cfg(test)]
