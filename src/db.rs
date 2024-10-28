@@ -115,7 +115,6 @@ impl Db {
         page_offset: u64,
         page_header_offset: Option<u64>,
     ) -> Result<Page> {
-        //dbg!(page_offset / 4096);
         let page_header_offset = page_header_offset.unwrap_or(0);
         let page_header = Self::get_page_header(file, page_offset + page_header_offset)
             .map_err(|e| anyhow!("can't read page header from file at page offset {page_offset}, page header offset {page_header_offset}: {e}"))?;
@@ -130,12 +129,18 @@ impl Db {
         let mut cell_offset = page_data_offset;
 
         let mut cell_pointer_array = Vec::with_capacity(page_header.num_cells.into());
+        //if page_data_offset == page_offset + 12 {
+        //    dbg!(page_data_offset, page_header.num_cells);
+        //}
         for i in 0..page_header.num_cells {
             let mut buf = [0_u8; 2];
             file.read_exact_at(&mut buf, cell_offset)
                 .map_err(|e| anyhow!("can't read cell {i} at offset {cell_offset}: {e}"))?;
             cell_pointer_array.push(u16::from_be_bytes(buf));
             cell_offset += 2;
+            //if page_data_offset == page_offset + 12 {
+            //    dbg!(i);
+            //}
         }
 
         match page_header.page_type {
@@ -323,10 +328,7 @@ impl Db {
 
         match page {
             Page::LeafTable(p) => Self::read_leaf_page(&p, &query, table_info),
-            Page::InteriorTable(p) => {
-                //println!("root page is interior ---------------------------");
-                self.read_interior_page(&p, &query, table_info)
-            }
+            Page::InteriorTable(p) => self.read_interior_page(&p, &query, table_info),
             _ => todo!(),
         }
     }
@@ -339,112 +341,22 @@ impl Db {
     ) -> Result<Vec<Vec<String>>> {
         let mut res = Vec::new();
         for cell in &interior_page.cells {
-            //dbg!(cell.left_child_page_num);
-            //dbg!(interior_page.page_header.rightmost_pointer);
             let pointer = (cell.left_child_page_num * u32::from(self.header.page_size)).into();
             let child = Self::get_page(self, pointer, None)?;
             match child {
                 Page::LeafTable(leaf) => {
-                    //dbg!("leaf child");
                     let mut r = Self::read_leaf_page(&leaf, query, table_info)?;
-                    //if !r.is_empty() {
-                    //    println!("got from leaf table {}: {:?}", &leaf.offset / 4096, r);
-                    //}
                     res.append(&mut r);
                 }
-                Page::InteriorTable(interior) => {
-                    //for cell in &interior.cells {
-                    //    let pointer =
-                    //        (cell.left_child_page_num * u32::from(self.header.page_size)).into();
-                    //    let child = Self::get_page(self, pointer, None)?;
-                    //    match child {
-                    //        Page::LeafTable(leaf) => {
-                    //            let mut r = Self::read_leaf_page(&leaf, query, table_info)?;
-                    //            //if !r.is_empty() {
-                    //            //    println!(
-                    //            //        "got from INNER leaf table {}: {:?}",
-                    //            //        &leaf.offset / 4096,
-                    //            //        r
-                    //            //    );
-                    //            //}
-                    //            res.append(&mut r);
-                    //        }
-                    //        Page::InteriorTable(_) => todo!("next layer"),
-                    //        Page::LeafIndex => (),
-                    //        Page::InteriorIndex => (),
-                    //    }
-                    //}
-                    //let mut r = self.read_interior_page(&interior, query, table_info)?;
-                    //if !r.is_empty() {
-                    //    println!(
-                    //        "got from interior table {}: {:#?}",
-                    //        &interior.offset / 4096,
-                    //        r
-                    //    );
-                    //}
-                    //res.append(&mut r);
+                Page::InteriorTable(interior_child) => {
+                    let mut r = self.read_interior_page(&interior_child, query, table_info)?;
+                    res.append(&mut r);
                 }
                 _ => {
                     //dbg!("other type");
                 }
             }
         }
-
-        let rightmost_pointer = (interior_page.page_header.rightmost_pointer.unwrap()
-            * u32::from(self.header.page_size))
-        .into();
-        let rightmost_child = Self::get_page(self, rightmost_pointer, None)?;
-        match rightmost_child {
-            Page::LeafTable(leaf) => {
-                //dbg!("leaf rightmost");
-                let mut r = Self::read_leaf_page(&leaf, query, table_info)?;
-                //if !r.is_empty() {
-                //    println!(
-                //        "got from leaf RIGHTMOST table {}: {:?}",
-                //        &leaf.offset / 4096,
-                //        r
-                //    );
-                //}
-                res.append(&mut r);
-            }
-            Page::InteriorTable(interior) => {
-                todo!("interior rightmost")
-                //for cell in &interior.cells {
-                //    let pointer =
-                //        (cell.left_child_page_num * u32::from(self.header.page_size)).into();
-                //    let child = Self::get_page(self, pointer, None)?;
-                //    match child {
-                //        Page::LeafTable(leaf) => {
-                //            let mut r = Self::read_leaf_page(&leaf, query, table_info)?;
-                //            if !r.is_empty() {
-                //                println!(
-                //                    "got from INNER leaf table {}: {:?}",
-                //                    &leaf.offset / 4096,
-                //                    r
-                //                );
-                //            }
-                //            res.append(&mut r);
-                //        }
-                //        Page::InteriorTable(_) => todo!("next layer"),
-                //        Page::LeafIndex => (),
-                //        Page::InteriorIndex => (),
-                //    }
-                //}
-                //let mut r = self.read_interior_page(&interior, query, table_info)?;
-                //if !r.is_empty() {
-                //    println!(
-                //        "got from interior table {}: {:#?}",
-                //        &interior.offset / 4096,
-                //        r
-                //    );
-                //}
-                //res.append(&mut r);
-            }
-            _ => {
-                //dbg!("other type");
-            }
-        }
-        //dbg!(rightmost_child);
         Ok(res)
     }
 
