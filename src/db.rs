@@ -129,18 +129,12 @@ impl Db {
         let mut cell_offset = page_data_offset;
 
         let mut cell_pointer_array = Vec::with_capacity(page_header.num_cells.into());
-        //if page_data_offset == page_offset + 12 {
-        //    dbg!(page_data_offset, page_header.num_cells);
-        //}
         for i in 0..page_header.num_cells {
             let mut buf = [0_u8; 2];
             file.read_exact_at(&mut buf, cell_offset)
                 .map_err(|e| anyhow!("can't read cell {i} at offset {cell_offset}: {e}"))?;
             cell_pointer_array.push(u16::from_be_bytes(buf));
             cell_offset += 2;
-            //if page_data_offset == page_offset + 12 {
-            //    dbg!(i);
-            //}
         }
 
         match page_header.page_type {
@@ -152,7 +146,6 @@ impl Db {
                     page_header,
                     //cell_pointer_array,
                     cells,
-                    offset: page_offset,
                 }))
             }
             PageType::InteriorIndex => Ok(Page::InteriorIndex),
@@ -162,7 +155,6 @@ impl Db {
                 Ok(Page::InteriorTable(InteriorTablePage {
                     page_header,
                     cells,
-                    offset: page_offset,
                 }))
             }
             PageType::LeafIndex => Ok(Page::LeafIndex),
@@ -327,13 +319,13 @@ impl Db {
         )?;
 
         match page {
-            Page::LeafTable(p) => Self::read_leaf_page(&p, &query, table_info),
-            Page::InteriorTable(p) => self.read_interior_page(&p, &query, table_info),
+            Page::LeafTable(p) => Self::query_leaf_page(&p, &query, table_info),
+            Page::InteriorTable(p) => self.query_interior_page(&p, &query, table_info),
             _ => todo!(),
         }
     }
 
-    fn read_interior_page(
+    fn query_interior_page(
         &self,
         interior_page: &InteriorTablePage,
         query: &SelectQuery,
@@ -341,15 +333,16 @@ impl Db {
     ) -> Result<Vec<Vec<String>>> {
         let mut res = Vec::new();
         for cell in &interior_page.cells {
-            let pointer = (cell.left_child_page_num * u32::from(self.header.page_size)).into();
-            let child = Self::get_page(self, pointer, None)?;
+            let pointer =
+                ((cell.left_child_page_num - 1) * u32::from(self.header.page_size)).into();
+            let child = self.get_page(pointer, None)?;
             match child {
                 Page::LeafTable(leaf) => {
-                    let mut r = Self::read_leaf_page(&leaf, query, table_info)?;
+                    let mut r = Self::query_leaf_page(&leaf, query, table_info)?;
                     res.append(&mut r);
                 }
                 Page::InteriorTable(interior_child) => {
-                    let mut r = self.read_interior_page(&interior_child, query, table_info)?;
+                    let mut r = self.query_interior_page(&interior_child, query, table_info)?;
                     res.append(&mut r);
                 }
                 _ => {
@@ -357,10 +350,18 @@ impl Db {
                 }
             }
         }
+
+        //todo: make something with rightmost?
+        //let rightmost = self.get_page(
+        //    interior_page.page_header.rightmost_pointer.unwrap().into(),
+        //    None,
+        //)?;
+        //dbg!(rightmost);
+
         Ok(res)
     }
 
-    fn read_leaf_page(
+    fn query_leaf_page(
         leaf_page: &LeafTablePage,
         query: &SelectQuery,
         table_info: &TableInfo,

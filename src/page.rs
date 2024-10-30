@@ -13,6 +13,7 @@ pub enum PageType {
 pub struct PageHeader {
     pub page_type: PageType,
     pub num_cells: u16,
+    #[allow(dead_code)]
     pub rightmost_pointer: Option<u32>,
 }
 
@@ -29,15 +30,14 @@ pub struct LeafTablePage {
     pub page_header: PageHeader,
     //pub cell_pointer_array: Vec<u16>,
     pub cells: Vec<LeafTableCell>,
-    pub offset: u64,
 }
 
 #[derive(Debug)]
 pub struct InteriorTablePage {
+    #[allow(dead_code)]
     pub page_header: PageHeader,
     //pub cell_pointer_array: Vec<u16>,
     pub cells: Vec<TableInteriorCell>,
-    pub offset: u64,
 }
 
 #[derive(Debug)]
