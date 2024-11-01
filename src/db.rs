@@ -95,6 +95,15 @@ impl Db {
             let columns = &caps["columns"];
             let mut column_orders = BTreeMap::new();
             for (i, mut c) in columns.split(",").enumerate() {
+                c = c.trim();
+                if c.starts_with('"') {
+                    c = c
+                        .split('"')
+                        .nth(1)
+                        .ok_or(anyhow!("bad format of the column {c}"))?;
+                    column_orders.insert(c.to_string(), i);
+                    continue;
+                }
                 c = c
                     .trim()
                     .split(" ")
