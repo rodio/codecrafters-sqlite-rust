@@ -67,7 +67,8 @@ impl Db {
                 .get(3)
                 .ok_or(anyhow!("can't get root page num from cell 3"))?;
             let root_page_num = match root_page_number_col {
-                Column::I8(i) => *i,
+                Column::I8(i) => *i as i32,
+                Column::I24(i) => *i,
                 _ => return Err(anyhow!("wrong format of root page column")),
             };
 
@@ -80,6 +81,11 @@ impl Db {
                 Column::Str(s) => s,
                 _ => return Err(anyhow!("wrong format of sql column")),
             };
+
+            if sql.starts_with("CREATE INDEX") {
+                //CREATE INDEX (?P<index_name>.+)\s+on (?P<table>.+) ((?P<columns>.+))
+                continue;
+            }
 
             let re =
                 Regex::new(r#"CREATE TABLE \"?\w+\"?\n?\s?\(\n?(?P<columns>(?:\n|.)+)\)"#).unwrap();
@@ -172,7 +178,7 @@ impl Db {
             let mut pointer = *pointer as u64;
             pointer += page_offset;
             let mut buf_u32 = [0_u8; 4]; // for varints
-            let mut buf_varint = [0_u8, 9]; // for varints
+            let mut buf_varint = [0_u8; 9]; // for varints
 
             file.read_exact_at(&mut buf_u32, pointer)
                 .map_err(|e| anyhow!("can't read cell size: {e} at pointer {pointer}"))?;
@@ -202,7 +208,7 @@ impl Db {
         for pointer in &cell_pointer_array {
             let mut pointer = *pointer as u64;
             pointer += page_offset;
-            let mut buf = [0_u8, 9]; // for varints
+            let mut buf = [0_u8; 9]; // for varints
 
             // size:
             file.read_exact_at(&mut buf, pointer)
@@ -254,6 +260,10 @@ impl Db {
                     ColumnType::I16 => {
                         let val = i16::from_be_bytes([buf[0], buf[1]]);
                         record_body.columns.push(Column::I16(val));
+                    }
+                    ColumnType::I24 => {
+                        let val = i32::from_be_bytes([0, buf[0], buf[1], buf[2]]);
+                        record_body.columns.push(Column::I24(val));
                     }
                     ColumnType::One => {
                         record_body.columns.push(Column::One);
@@ -384,6 +394,7 @@ impl Db {
                     Column::Str(s) => s.to_string(),
                     Column::I8(i) => i.to_string(),
                     Column::I16(i) => i.to_string(),
+                    Column::I24(i) => i.to_string(),
                     Column::One => String::from("1"),
                     Column::Null => cell.rowid.to_string(),
                 };

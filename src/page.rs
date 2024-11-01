@@ -42,7 +42,7 @@ pub struct InteriorTablePage {
 
 #[derive(Debug)]
 pub struct TableInfo {
-    pub root_page_num: I8,
+    pub root_page_num: i32,
     // column_name -> order
     pub column_orders: BTreeMap<String, usize>,
 }
@@ -100,12 +100,14 @@ impl RecordBody {
 pub type Str = String;
 pub type I8 = i8;
 pub type I16 = i16;
+pub type I24 = i32;
 
 #[derive(Debug)]
 pub enum ColumnType {
     Str,
     I8,
     I16,
+    I24,
     One,
     Null,
 }
@@ -115,6 +117,7 @@ pub enum Column {
     Str(Str),
     I8(I8),
     I16(I16),
+    I24(I24),
     One,
     Null,
 }
@@ -125,6 +128,7 @@ impl Display for Column {
             Column::Str(s) => write!(f, "{}", s),
             Column::I8(i) => write!(f, "{}", i),
             Column::I16(i) => write!(f, "{}", i),
+            Column::I24(i) => write!(f, "{}", i),
             Column::One => write!(f, "1"),
             Column::Null => write!(f, "NULL"),
         }
