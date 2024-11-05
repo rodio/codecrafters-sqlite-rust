@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq)]
@@ -47,10 +47,19 @@ pub struct TableInfo {
     pub column_orders: BTreeMap<String, usize>,
 }
 
+#[derive(Debug)]
+pub struct IdxInfo {
+    pub root_page_num: i32,
+    pub idx_name: String,
+    pub columns: HashSet<String>,
+}
+
+#[derive(Debug)]
 pub struct FirstPage {
     //pub db_header: DbHeader,
     pub page: LeafTablePage,
     pub table_infos: BTreeMap<String, TableInfo>, // TableName->TableInfo
+    pub idx_infos: BTreeMap<String, IdxInfo>,     // TableName->IdxInfo
 }
 
 #[derive(Debug)]

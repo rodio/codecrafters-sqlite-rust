@@ -2,10 +2,10 @@ use std::{collections::BTreeMap, fs::File, os::unix::fs::FileExt};
 
 use crate::{
     page::{
-        Column, ColumnType, FirstPage, InteriorTablePage, LeafTableCell, LeafTablePage, Page,
-        PageHeader, PageType, RecordBody, RecordHeader, TableInfo, TableInteriorCell,
+        Column, ColumnType, FirstPage, IdxInfo, InteriorTablePage, LeafTableCell, LeafTablePage,
+        Page, PageHeader, PageType, RecordBody, RecordHeader, TableInfo, TableInteriorCell,
     },
-    query::SelectQuery,
+    query::{self, CreateIdxQuery, CreateQuery, CreateTableQuery, SelectQuery},
     util::{get_content_size_type, read_varint},
 };
 use anyhow::{anyhow, Result};
@@ -50,6 +50,7 @@ impl Db {
         };
 
         let mut table_infos = BTreeMap::new();
+        let mut idx_infos = BTreeMap::new();
         for cell in &page.cells {
             let page_name_col = cell
                 .record_body
@@ -76,49 +77,35 @@ impl Db {
                 .record_body
                 .columns
                 .get(4)
-                .ok_or(anyhow!("can't get sql num from cell 4"))?;
+                .ok_or(anyhow!("can't get sql for table {table_name} from cell 4"))?;
             let sql = match sql_col {
                 Column::Str(s) => s,
                 _ => return Err(anyhow!("wrong format of sql column")),
             };
 
-            if sql.starts_with("CREATE INDEX") {
-                //CREATE INDEX (?P<index_name>.+)\s+on (?P<table>.+) ((?P<columns>.+))
-                continue;
-            }
-
-            let re =
-                Regex::new(r#"CREATE TABLE \"?\w+\"?\n?\s?\(\n?(?P<columns>(?:\n|.)+)\)"#).unwrap();
-            let caps = re
-                .captures(sql)
-                .ok_or(anyhow!("can't parse columns from {}", sql))?;
-            let columns = &caps["columns"];
-            let mut column_orders = BTreeMap::new();
-            for (i, mut c) in columns.split(",").enumerate() {
-                c = c.trim();
-                if c.starts_with('"') {
-                    c = c
-                        .split('"')
-                        .nth(1)
-                        .ok_or(anyhow!("bad format of the column {c}"))?;
-                    column_orders.insert(c.to_string(), i);
-                    continue;
+            match CreateQuery::from_sql(sql)? {
+                CreateQuery::CreateIdx(query) => {
+                    let idx_info = IdxInfo {
+                        root_page_num,
+                        idx_name: query.idx_name,
+                        columns: query.columns,
+                    };
+                    idx_infos.insert(table_name, idx_info);
                 }
-                c = c
-                    .trim()
-                    .split(" ")
-                    .next()
-                    .ok_or(anyhow!("bad format of the column {c}"))?;
-
-                column_orders.insert(c.to_string(), i);
+                CreateQuery::CreateTable(query) => {
+                    let table_info = TableInfo {
+                        root_page_num,
+                        column_orders: query.column_orders,
+                    };
+                    table_infos.insert(table_name, table_info);
+                }
             }
-            let table_info = TableInfo {
-                root_page_num,
-                column_orders,
-            };
-            table_infos.insert(table_name, table_info);
         }
-        Ok(FirstPage { page, table_infos })
+        Ok(FirstPage {
+            page,
+            table_infos,
+            idx_infos,
+        })
     }
 
     pub fn get_page(&self, page_offset: u64, page_header_offset: Option<u64>) -> Result<Page> {
