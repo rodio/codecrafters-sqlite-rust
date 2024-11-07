@@ -5,7 +5,7 @@ mod util;
 
 use anyhow::{bail, Result};
 use db::Db;
-use page::Page;
+use page::{InteriorIdxPage, Page};
 use std::fs::File;
 
 fn main() -> Result<()> {
@@ -20,6 +20,23 @@ fn main() -> Result<()> {
     // Parse command and act accordingly
     let command = &args[2];
     match command.as_str() {
+        ".test" => {
+            let file = File::open(&args[1])?;
+            let db = Db::new(file)?;
+            dbg!(&db.idx_infos);
+            let root_offset = (db.idx_infos.get("companies").unwrap().root_page_num - 1) as u64
+                * db.header.page_size as u64;
+
+            let root_page = db.get_page(root_offset, None)?;
+            dbg!(&root_page);
+
+            if let Page::InteriorIdx(interior_page) = root_page {
+                let left_child_offset = interior_page.cells.first().unwrap().left_child_page_num
+                    as u64
+                    * db.header.page_size as u64;
+                dbg!(db.get_page(left_child_offset, None))?;
+            }
+        }
         ".dbinfo" => {
             let file = File::open(&args[1])?;
             let db = Db::new(file)?;

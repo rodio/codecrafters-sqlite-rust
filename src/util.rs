@@ -1,6 +1,6 @@
 use crate::page::ColumnType;
 
-pub fn read_varint(bytes: &[u8]) -> (i64, usize) {
+pub fn read_varint(bytes: &[u8]) -> (i64, u64) {
     let mut trimmed_bytes: Vec<u8> = Vec::new();
     let mut continue_bit = true;
     for byte in bytes {
@@ -31,10 +31,10 @@ pub fn read_varint(bytes: &[u8]) -> (i64, usize) {
         carryover_bit = byte & 0b0000_0001 == 1;
     }
 
-    (i64::from_be_bytes(res), trimmed_bytes.len())
+    (i64::from_be_bytes(res), trimmed_bytes.len() as u64)
 }
 
-pub fn get_content_size_type(input: i64) -> (usize, ColumnType) {
+pub fn get_content_size_type(input: i64) -> (u64, ColumnType) {
     if input == 0 {
         return (0, ColumnType::Null);
     }
@@ -45,6 +45,10 @@ pub fn get_content_size_type(input: i64) -> (usize, ColumnType) {
 
     if input == 2 {
         return (2, ColumnType::I16);
+    }
+
+    if input == 3 {
+        return (3, ColumnType::I24);
     }
 
     if input == 3 {

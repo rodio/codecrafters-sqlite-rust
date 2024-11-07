@@ -2,19 +2,20 @@ use std::{collections::BTreeMap, fs::File, os::unix::fs::FileExt};
 
 use crate::{
     page::{
-        Column, ColumnType, FirstPage, IdxInfo, InteriorTablePage, LeafTableCell, LeafTablePage,
-        Page, PageHeader, PageType, RecordBody, RecordHeader, TableInfo, TableInteriorCell,
+        Column, ColumnType, FirstPage, IdxInfo, IdxInteriorCell, IdxLeafCell, IdxRecordBody,
+        InteriorIdxPage, InteriorTablePage, LeafIdxPage, LeafTableCell, LeafTablePage, Page,
+        PageHeader, PageType, RecordBody, RecordHeader, TableInfo, TableInteriorCell,
     },
-    query::{self, CreateIdxQuery, CreateQuery, CreateTableQuery, SelectQuery},
+    query::{CreateQuery, SelectQuery},
     util::{get_content_size_type, read_varint},
 };
 use anyhow::{anyhow, Result};
-use regex::Regex;
 
 pub struct Db {
     file: File,
     pub header: DbHeader,
     pub table_infos: BTreeMap<String, TableInfo>, // TableName->TableInfo
+    pub idx_infos: BTreeMap<String, IdxInfo>,     // TableName->TableInfo
     pub num_cells: usize,                         // number of cells in the first page for now
 }
 
@@ -36,6 +37,7 @@ impl Db {
             file,
             header,
             table_infos: first_page.table_infos,
+            idx_infos: first_page.idx_infos,
             num_cells: first_page.page.cells.len(),
         })
     }
@@ -68,8 +70,8 @@ impl Db {
                 .get(3)
                 .ok_or(anyhow!("can't get root page num from cell 3"))?;
             let root_page_num = match root_page_number_col {
-                Column::I8(i) => *i as i32,
-                Column::I24(i) => *i,
+                Column::I8(i) => *i as u32,
+                Column::I24(i) => (*i).try_into().unwrap(),
                 _ => return Err(anyhow!("wrong format of root page column")),
             };
 
@@ -141,8 +143,12 @@ impl Db {
 
         match page_header.page_type {
             PageType::LeafTable => {
-                let cells =
-                    Self::get_leaf_cells(cell_pointer_array, &page_header, file, page_offset)?;
+                let cells = Self::get_leaf_table_cells(
+                    cell_pointer_array,
+                    &page_header,
+                    file,
+                    page_offset,
+                )?;
 
                 Ok(Page::LeafTable(LeafTablePage {
                     page_header,
@@ -150,20 +156,112 @@ impl Db {
                     cells,
                 }))
             }
-            PageType::InteriorIndex => Ok(Page::InteriorIndex),
+            PageType::InteriorIndex => {
+                let cells = Self::get_interior_idx_cells(
+                    cell_pointer_array,
+                    &page_header,
+                    file,
+                    page_offset,
+                )?;
+                Ok(Page::InteriorIdx(InteriorIdxPage { page_header, cells }))
+            }
             PageType::InteriorTable => {
-                let cells =
-                    Self::get_interior_cells(cell_pointer_array, &page_header, file, page_offset)?;
+                let cells = Self::get_interior_table_cells(
+                    cell_pointer_array,
+                    &page_header,
+                    file,
+                    page_offset,
+                )?;
                 Ok(Page::InteriorTable(InteriorTablePage {
                     page_header,
                     cells,
                 }))
             }
-            PageType::LeafIndex => Ok(Page::LeafIndex),
+            PageType::LeafIndex => {
+                let cells =
+                    Self::get_leaf_idx_cells(cell_pointer_array, &page_header, file, page_offset)?;
+                Ok(Page::LeafIndex(LeafIdxPage { page_header, cells }))
+            }
         }
     }
 
-    fn get_interior_cells(
+    fn get_leaf_idx_cells(
+        cell_pointer_array: Vec<u16>,
+        page_header: &PageHeader,
+        file: &File,
+        page_offset: u64,
+    ) -> Result<Vec<IdxLeafCell>> {
+        let mut cells = Vec::with_capacity(page_header.num_cells.into());
+        for pointer in &cell_pointer_array {
+            let mut pointer = *pointer as u64;
+            pointer += page_offset;
+            let mut buf_varint = [0_u8; 9];
+
+            file.read_exact_at(&mut buf_varint, pointer)
+                .map_err(|e| anyhow!("can't read number of bytes of payload of interior idx cell: {e} at pointer {pointer}"))?;
+            let (payload_size, varint_offset) = read_varint(&buf_varint);
+            pointer += varint_offset;
+
+            let mut payload_buf = vec![0_u8; payload_size.try_into().unwrap()];
+            file.read_exact_at(&mut payload_buf, pointer)?;
+
+            // todo read overflow
+
+            cells.push(IdxLeafCell {
+                initial_payload: String::from_utf8(payload_buf)?,
+                payload_overflow_page_num: 0,
+            })
+        }
+
+        Ok(cells)
+    }
+
+    fn get_interior_idx_cells(
+        cell_pointer_array: Vec<u16>,
+        page_header: &PageHeader,
+        file: &File,
+        page_offset: u64,
+    ) -> Result<Vec<IdxInteriorCell>> {
+        let mut cells = Vec::with_capacity(page_header.num_cells.into());
+        for pointer in &cell_pointer_array {
+            let mut pointer = *pointer as u64;
+            pointer += page_offset;
+            let mut buf_u32 = [0_u8; 4];
+            let mut buf_varint = [0_u8; 9];
+
+            // left child
+            file.read_exact_at(&mut buf_u32, pointer)
+                .map_err(|e| anyhow!("can't read page number of left child of interior idx cell: {e} at pointer {pointer}"))?;
+            let left_child_page_num = u32::from_be_bytes(buf_u32);
+            let mut current_offset = 4;
+
+            // payload size, skipping
+            file.read_exact_at(&mut buf_varint, pointer + current_offset)
+                .map_err(|e| anyhow!("can't read number of bytes of payload of interior idx cell: {e} at pointer {pointer}"))?;
+            let (_payload_size, o) = read_varint(&buf_varint);
+            current_offset += o;
+
+            // record header
+            let (record_header, o) = RecordHeader::from_file(file, pointer + current_offset)?;
+            current_offset += o;
+
+            let (columns, o) = record_header.read_columns(file, pointer + current_offset)?;
+            current_offset += o;
+
+            file.read_exact_at(&mut buf_varint, pointer + current_offset)?;
+            let (rowid, _) = read_varint(&buf_varint);
+
+            cells.push(IdxInteriorCell {
+                left_child_page_num,
+                record_header,
+                record_body: IdxRecordBody { columns, rowid },
+            })
+        }
+
+        Ok(cells)
+    }
+
+    fn get_interior_table_cells(
         cell_pointer_array: Vec<u16>,
         page_header: &PageHeader,
         file: &File,
@@ -173,7 +271,7 @@ impl Db {
         for pointer in &cell_pointer_array {
             let mut pointer = *pointer as u64;
             pointer += page_offset;
-            let mut buf_u32 = [0_u8; 4]; // for varints
+            let mut buf_u32 = [0_u8; 4]; // for integers
             let mut buf_varint = [0_u8; 9]; // for varints
 
             file.read_exact_at(&mut buf_u32, pointer)
@@ -194,7 +292,7 @@ impl Db {
         Ok(cells)
     }
 
-    fn get_leaf_cells(
+    fn get_leaf_table_cells(
         cell_pointer_array: Vec<u16>,
         page_header: &PageHeader,
         file: &File,
@@ -206,73 +304,29 @@ impl Db {
             pointer += page_offset;
             let mut buf = [0_u8; 9]; // for varints
 
+            let mut current_offset = 0_u64;
             // size:
             file.read_exact_at(&mut buf, pointer)
                 .map_err(|e| anyhow!("can't read cell size: {e} at pointer {pointer}"))?;
-            let (size, mut varint_offset) = read_varint(&buf);
+            let (size, o) = read_varint(&buf);
+            current_offset += o;
 
             // rowid:
-            file.read_exact_at(&mut buf, pointer + varint_offset as u64)
+            file.read_exact_at(&mut buf, pointer + current_offset)
                 .map_err(|e| anyhow!("can't read cell rowid: {e} at pointer {pointer}"))?;
             let (rowid, o) = read_varint(&buf);
-            varint_offset += o;
+            current_offset += o;
 
-            // header_size:
-            file.read_exact_at(&mut buf, pointer + varint_offset as u64)
-                .map_err(|e| anyhow!("can't read cell header size: {e} at pointer {pointer}"))?;
-            let (record_header_size, record_header_size_bytes) = read_varint(&buf);
-            varint_offset += record_header_size_bytes;
+            let (record_header, o) = RecordHeader::from_file(file, pointer + current_offset)?;
+            current_offset += o;
 
-            // record header
-            let mut record_header = RecordHeader::new(record_header_size);
-
-            // cell types
-            let mut bytes_read = 0;
-            while bytes_read < record_header.size - record_header_size_bytes as i64 {
-                file.read_exact_at(&mut buf, pointer + varint_offset as u64)?;
-                let (column_type, o) = read_varint(&buf);
-                varint_offset += o;
-                bytes_read += o as i64;
-
-                record_header.column_types.push(column_type);
-            }
-
-            let mut record_body = RecordBody::new();
-            for t in &record_header.column_types {
-                // todo: tightly couple sizes and types
-                let (size, typ) = get_content_size_type(*t);
-                let mut buf: Vec<u8> = vec![0; size];
-                file.read_exact_at(buf.as_mut_slice(), pointer + varint_offset as u64)?;
-                varint_offset += size;
-                match typ {
-                    ColumnType::Str => {
-                        let s = String::from_utf8(buf).unwrap();
-                        record_body.columns.push(Column::Str(s));
-                    }
-                    ColumnType::I8 => {
-                        let val = i8::from_be_bytes([buf.as_slice()[0]]);
-                        record_body.columns.push(Column::I8(val));
-                    }
-                    ColumnType::I16 => {
-                        let val = i16::from_be_bytes([buf[0], buf[1]]);
-                        record_body.columns.push(Column::I16(val));
-                    }
-                    ColumnType::I24 => {
-                        let val = i32::from_be_bytes([0, buf[0], buf[1], buf[2]]);
-                        record_body.columns.push(Column::I24(val));
-                    }
-                    ColumnType::One => {
-                        record_body.columns.push(Column::One);
-                    }
-                    ColumnType::Null => record_body.columns.push(Column::Null),
-                }
-            }
+            let (columns, _) = record_header.read_columns(file, pointer + current_offset)?;
 
             let cell = LeafTableCell {
                 size,
                 rowid,
                 record_header,
-                record_body,
+                record_body: RecordBody { columns },
             };
 
             cells.push(cell)
@@ -300,7 +354,7 @@ impl Db {
         };
 
         let mut rightmost_pointer = None;
-        if page_type == PageType::InteriorTable {
+        if page_type == PageType::InteriorTable || page_type == PageType::InteriorIndex {
             let b: [u8; 4] = page_header[8..12].try_into().unwrap();
             rightmost_pointer = Some(u32::from_be_bytes(b));
         }
