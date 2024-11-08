@@ -1,37 +1,42 @@
+use core::panic;
+
 use crate::page::ColumnType;
 
-pub fn read_varint(bytes: &[u8]) -> (i64, u64) {
+pub fn read_varint(bytes: &[u8]) -> (i64, u8) {
+    if bytes.len() > 9 {
+        panic!("len of varint is > 9");
+    }
+
     let mut trimmed_bytes: Vec<u8> = Vec::new();
     let mut continue_bit = true;
-    for byte in bytes {
+    for (i, byte) in bytes.iter().enumerate() {
         if !continue_bit {
             break;
         }
         continue_bit = (byte & 0b1000_0000) == 0b1000_0000;
 
+        if i == 8 {
+            trimmed_bytes.push(*byte);
+            break;
+        }
+
         let trimmed_byte = byte & 0b0111_1111;
         trimmed_bytes.push(trimmed_byte);
     }
 
-    let mut res = [0; 8];
-
-    let mut carryover_bit = false;
+    let mut res = 0_i64;
     for (i, byte) in trimmed_bytes.iter().enumerate() {
-        let mut byte = *byte;
-        if carryover_bit {
-            byte |= 0b1000_0000;
+        if i == 8 {
+            res <<= 8;
+            res |= *byte as i64;
+            break;
         }
 
-        if i != trimmed_bytes.len() - 1 {
-            res[8 - trimmed_bytes.len() + i] = byte >> 1;
-        } else {
-            res[8 - trimmed_bytes.len() + i] = byte;
-        }
-
-        carryover_bit = byte & 0b0000_0001 == 1;
+        res <<= 7;
+        res |= *byte as i64;
     }
 
-    (i64::from_be_bytes(res), trimmed_bytes.len() as u64)
+    (res, trimmed_bytes.len().try_into().unwrap())
 }
 
 pub fn get_content_size_type(input: i64) -> (u64, ColumnType) {
@@ -45,10 +50,6 @@ pub fn get_content_size_type(input: i64) -> (u64, ColumnType) {
 
     if input == 2 {
         return (2, ColumnType::I16);
-    }
-
-    if input == 3 {
-        return (3, ColumnType::I24);
     }
 
     if input == 3 {
@@ -76,12 +77,44 @@ mod tests {
 
     #[test]
     fn it_works() {
+        let (result, n) = read_varint(&[0x17]);
+        assert_eq!(result, 0x17);
+        assert_eq!(n, 1);
+
         let (result, n) = read_varint(&[0x81, 0x47]);
         assert_eq!(result, 199);
         assert_eq!(n, 2);
 
-        let (result, n) = read_varint(&[0x17]);
-        assert_eq!(result, 23);
-        assert_eq!(n, 1);
+        let bytes = [
+            0b1000_0010,
+            0b1110_0001,
+            0b1110_0111,
+            0b0111_0000,
+            0b0000_1011,
+            0,
+            29,
+            37,
+            0,
+        ];
+
+        let (result, n) = read_varint(&bytes);
+        assert_eq!(result, 5796848);
+        assert_eq!(n, 4);
+
+        let bytes = [
+            0b1000_0010,
+            0b1110_0001,
+            0b1110_0111,
+            0b1111_0000,
+            0b1000_1011,
+            0b1110_0001,
+            0b1110_0111,
+            0b1111_0000,
+            0b0000_1011,
+        ];
+
+        let (result, n) = read_varint(&bytes);
+        assert_eq!(result, 398356367593959435);
+        assert_eq!(n, 9);
     }
 }

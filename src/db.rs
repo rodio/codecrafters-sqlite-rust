@@ -2,12 +2,12 @@ use std::{collections::BTreeMap, fs::File, os::unix::fs::FileExt};
 
 use crate::{
     page::{
-        Column, ColumnType, FirstPage, IdxInfo, IdxInteriorCell, IdxLeafCell, IdxRecordBody,
-        InteriorIdxPage, InteriorTablePage, LeafIdxPage, LeafTableCell, LeafTablePage, Page,
-        PageHeader, PageType, RecordBody, RecordHeader, TableInfo, TableInteriorCell,
+        Column, FirstPage, IdxInfo, IdxInteriorCell, IdxLeafCell, IdxRecordBody, InteriorIdxPage,
+        InteriorTablePage, LeafIdxPage, LeafTableCell, LeafTablePage, Page, PageHeader, PageType,
+        RecordBody, RecordHeader, TableInfo, TableInteriorCell,
     },
     query::{CreateQuery, SelectQuery},
-    util::{get_content_size_type, read_varint},
+    util::read_varint,
 };
 use anyhow::{anyhow, Result};
 
@@ -150,11 +150,7 @@ impl Db {
                     page_offset,
                 )?;
 
-                Ok(Page::LeafTable(LeafTablePage {
-                    page_header,
-                    //cell_pointer_array,
-                    cells,
-                }))
+                Ok(Page::LeafTable(LeafTablePage { page_header, cells }))
             }
             PageType::InteriorIndex => {
                 let cells = Self::get_interior_idx_cells(
@@ -192,24 +188,30 @@ impl Db {
         page_offset: u64,
     ) -> Result<Vec<IdxLeafCell>> {
         let mut cells = Vec::with_capacity(page_header.num_cells.into());
+        let mut buf_varint = [0_u8; 9];
         for pointer in &cell_pointer_array {
             let mut pointer = *pointer as u64;
             pointer += page_offset;
-            let mut buf_varint = [0_u8; 9];
-
-            file.read_exact_at(&mut buf_varint, pointer)
+            let mut current_offset = 0_u64;
+            // payload size, skipping
+            file.read_exact_at(&mut buf_varint, pointer + current_offset)
                 .map_err(|e| anyhow!("can't read number of bytes of payload of interior idx cell: {e} at pointer {pointer}"))?;
-            let (payload_size, varint_offset) = read_varint(&buf_varint);
-            pointer += varint_offset;
+            let (_payload_size, o) = read_varint(&buf_varint);
+            current_offset += o as u64;
 
-            let mut payload_buf = vec![0_u8; payload_size.try_into().unwrap()];
-            file.read_exact_at(&mut payload_buf, pointer)?;
+            // record header
+            let (record_header, o) = RecordHeader::from_file(file, pointer + current_offset)?;
+            current_offset += o;
 
-            // todo read overflow
+            let (columns, o) = record_header.read_columns(file, pointer + current_offset)?;
+            current_offset += o;
+
+            file.read_exact_at(&mut buf_varint, pointer + current_offset)?;
+            let (rowid, _) = read_varint(&buf_varint);
 
             cells.push(IdxLeafCell {
-                initial_payload: String::from_utf8(payload_buf)?,
-                payload_overflow_page_num: 0,
+                record_header,
+                record_body: IdxRecordBody { columns, rowid },
             })
         }
 
@@ -239,7 +241,7 @@ impl Db {
             file.read_exact_at(&mut buf_varint, pointer + current_offset)
                 .map_err(|e| anyhow!("can't read number of bytes of payload of interior idx cell: {e} at pointer {pointer}"))?;
             let (_payload_size, o) = read_varint(&buf_varint);
-            current_offset += o;
+            current_offset += o as u64;
 
             // record header
             let (record_header, o) = RecordHeader::from_file(file, pointer + current_offset)?;
@@ -309,13 +311,16 @@ impl Db {
             file.read_exact_at(&mut buf, pointer)
                 .map_err(|e| anyhow!("can't read cell size: {e} at pointer {pointer}"))?;
             let (size, o) = read_varint(&buf);
-            current_offset += o;
+            current_offset += o as u64;
 
             // rowid:
             file.read_exact_at(&mut buf, pointer + current_offset)
                 .map_err(|e| anyhow!("can't read cell rowid: {e} at pointer {pointer}"))?;
             let (rowid, o) = read_varint(&buf);
-            current_offset += o;
+            if rowid == 19952624 || rowid == 5796848 {
+                dbg!(o);
+            }
+            current_offset += o as u64;
 
             let (record_header, o) = RecordHeader::from_file(file, pointer + current_offset)?;
             current_offset += o;
@@ -393,8 +398,8 @@ impl Db {
     ) -> Result<Vec<Vec<String>>> {
         let mut res = Vec::new();
         for cell in &interior_page.cells {
-            let pointer =
-                ((cell.left_child_page_num - 1) * u32::from(self.header.page_size)).into();
+            let pointer = (cell.left_child_page_num - 1) as u64 * self.header.page_size as u64;
+            //dbg!(pointer / 4096);
             let child = self.get_page(pointer, None)?;
             match child {
                 Page::LeafTable(leaf) => {
@@ -411,11 +416,24 @@ impl Db {
             }
         }
 
-        //todo: make something with rightmost?
-        //let rightmost = self.get_page(
-        //    interior_page.page_header.rightmost_pointer.unwrap().into(),
-        //    None,
-        //)?;
+        let rightmost = self.get_page(
+            (interior_page.page_header.rightmost_pointer.unwrap() - 1) as u64
+                * self.header.page_size as u64,
+            None,
+        )?;
+        match rightmost {
+            Page::LeafTable(leaf) => {
+                let mut r = Self::query_leaf_page(&leaf, query, table_info)?;
+                res.append(&mut r);
+            }
+            Page::InteriorTable(interior_child) => {
+                let mut r = self.query_interior_page(&interior_child, query, table_info)?;
+                res.append(&mut r);
+            }
+            _ => {
+                dbg!("other type");
+            }
+        }
         //dbg!(rightmost);
 
         Ok(res)

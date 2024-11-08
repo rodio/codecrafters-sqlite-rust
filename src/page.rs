@@ -109,8 +109,8 @@ pub struct IdxInteriorCell {
 #[allow(dead_code)]
 pub struct IdxLeafCell {
     //pub key_payload_size: i64,
-    pub initial_payload: String,
-    pub payload_overflow_page_num: u32,
+    pub record_header: RecordHeader,
+    pub record_body: IdxRecordBody,
 }
 
 #[derive(Debug)]
@@ -126,7 +126,7 @@ impl RecordHeader {
         file.read_exact_at(&mut buf_varint, pointer + current_offset)
             .map_err(|e| anyhow!("can't read cell header size: {e} at offset {current_offset}"))?;
         let (record_header_size, record_header_size_bytes) = read_varint(&buf_varint);
-        current_offset += record_header_size_bytes;
+        current_offset += record_header_size_bytes as u64;
 
         let mut column_types = Vec::new();
         // column types
@@ -134,13 +134,11 @@ impl RecordHeader {
         while bytes_read < record_header_size - record_header_size_bytes as i64 {
             file.read_exact_at(&mut buf_varint, pointer + current_offset)?;
             let (column_type, o) = read_varint(&buf_varint);
-            dbg!(column_type);
-            current_offset += o;
+            current_offset += o as u64;
             bytes_read += o as i64;
 
             column_types.push(column_type);
         }
-        dbg!(record_header_size, current_offset);
         Ok((Self { column_types }, current_offset))
     }
 

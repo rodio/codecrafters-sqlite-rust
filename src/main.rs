@@ -28,13 +28,39 @@ fn main() -> Result<()> {
                 * db.header.page_size as u64;
 
             let root_page = db.get_page(root_offset, None)?;
-            dbg!(&root_page);
+            //dbg!(&root_page);
 
             if let Page::InteriorIdx(interior_page) = root_page {
                 let left_child_offset = interior_page.cells.first().unwrap().left_child_page_num
                     as u64
                     * db.header.page_size as u64;
-                dbg!(db.get_page(left_child_offset, None))?;
+                let roots_first_child = db.get_page(left_child_offset, None)?;
+                //dbg!(&roots_first_child);
+
+                if let Page::InteriorIdx(interior_roots_first_child) = roots_first_child {
+                    let roots_first_grandkid_offset = interior_roots_first_child
+                        .cells
+                        .first()
+                        .unwrap()
+                        .left_child_page_num
+                        as u64
+                        * db.header.page_size as u64;
+                    let roots_first_grandkid = db.get_page(roots_first_grandkid_offset, None)?;
+
+                    // grand grand
+                    if let Page::InteriorIdx(roots_first_grandkid) = roots_first_grandkid {
+                        let roots_first_grand_grandkid_offset = roots_first_grandkid
+                            .cells
+                            .first()
+                            .unwrap()
+                            .left_child_page_num
+                            as u64
+                            * db.header.page_size as u64;
+                        let roots_first_grand_grandkid =
+                            db.get_page(roots_first_grand_grandkid_offset, None)?;
+                        //dbg!(roots_first_grand_grandkid);
+                    }
+                }
             }
         }
         ".dbinfo" => {
