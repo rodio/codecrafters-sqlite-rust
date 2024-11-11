@@ -56,6 +56,10 @@ pub fn get_content_size_type(input: i64) -> (u64, ColumnType) {
         return (3, ColumnType::I24);
     }
 
+    if input == 8 {
+        return (0, ColumnType::Zero);
+    }
+
     if input == 9 {
         return (0, ColumnType::One);
     }

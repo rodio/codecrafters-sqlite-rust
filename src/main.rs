@@ -5,7 +5,8 @@ mod util;
 
 use anyhow::{bail, Result};
 use db::Db;
-use page::{InteriorIdxPage, Page};
+use page::Page;
+use query::SelectQuery;
 use std::fs::File;
 
 fn main() -> Result<()> {
@@ -23,45 +24,189 @@ fn main() -> Result<()> {
         ".test" => {
             let file = File::open(&args[1])?;
             let db = Db::new(file)?;
-            dbg!(&db.idx_infos);
-            let root_offset = (db.idx_infos.get("companies").unwrap().root_page_num - 1) as u64
+
+            let table_info = db.table_infos.get("companies").unwrap();
+            let query = SelectQuery::from_query_string(
+                "SELECT id, name, country FROM companies WHERE country = mongolia",
+            )?;
+
+            //dbg!(&query);
+
+            let rowids = db
+                .query_idx(&query.table_name, &query.where_value.clone().unwrap())?
+                .unwrap();
+            //dbg!(&rowids);
+
+            let root_offset = (db.table_infos.get(&query.table_name).unwrap().root_page_num - 1)
+                as u64
                 * db.header.page_size as u64;
-
             let root_page = db.get_page(root_offset, None)?;
-            //dbg!(&root_page);
 
-            if let Page::InteriorIdx(interior_page) = root_page {
-                let left_child_offset = interior_page.cells.first().unwrap().left_child_page_num
-                    as u64
-                    * db.header.page_size as u64;
-                let roots_first_child = db.get_page(left_child_offset, None)?;
-                //dbg!(&roots_first_child);
-
-                if let Page::InteriorIdx(interior_roots_first_child) = roots_first_child {
-                    let roots_first_grandkid_offset = interior_roots_first_child
-                        .cells
-                        .first()
-                        .unwrap()
-                        .left_child_page_num
-                        as u64
-                        * db.header.page_size as u64;
-                    let roots_first_grandkid = db.get_page(roots_first_grandkid_offset, None)?;
-
-                    // grand grand
-                    if let Page::InteriorIdx(roots_first_grandkid) = roots_first_grandkid {
-                        let roots_first_grand_grandkid_offset = roots_first_grandkid
-                            .cells
-                            .first()
-                            .unwrap()
-                            .left_child_page_num
-                            as u64
-                            * db.header.page_size as u64;
-                        let roots_first_grand_grandkid =
-                            db.get_page(roots_first_grand_grandkid_offset, None)?;
-                        //dbg!(roots_first_grand_grandkid);
-                    }
+            let mut res = Vec::new();
+            for rowid in &rowids {
+                let r = db.get_row(&root_page, *rowid, table_info, &query)?;
+                if !r.is_empty() {
+                    res.push(r);
                 }
             }
+
+            dbg!(rowids.len(), res.len());
+
+            //dbg!(&root_page);
+
+            //if let Page::InteriorIdx(root_page) = root_page {
+            //    for c in root_page.cells {
+            //        dbg!(&c);
+            //        dbg!(&root_page.page_header.rightmost_pointer);
+            //        let child_page = db.get_page(
+            //            ((c.left_child_page_num - 1) * db.header.page_size as u32).into(),
+            //            None,
+            //        )?;
+            //        if let Page::InteriorIdx(child_page) = child_page {
+            //            //maybe skip:
+            //            let first_cell_key: String = match &child_page
+            //                .cells
+            //                .first()
+            //                .unwrap()
+            //                .record_body
+            //                .columns
+            //                .first()
+            //                .unwrap()
+            //            {
+            //                Column::Str(key) => key.to_string(),
+            //                Column::I8(_) => todo!(),
+            //                Column::I16(_) => todo!(),
+            //                Column::I24(_) => todo!(),
+            //                Column::One => todo!(),
+            //                Column::Null => todo!(),
+            //            };
+            //
+            //            let last_cell_key: String = match &child_page
+            //                .cells
+            //                .last()
+            //                .unwrap()
+            //                .record_body
+            //                .columns
+            //                .first()
+            //                .unwrap()
+            //            {
+            //                Column::Str(key) => key.to_string(),
+            //                Column::I8(_) => todo!(),
+            //                Column::I16(_) => todo!(),
+            //                Column::I24(_) => todo!(),
+            //                Column::One => todo!(),
+            //                Column::Null => todo!(),
+            //            };
+            //
+            //            dbg!(&first_cell_key);
+            //            dbg!(&last_cell_key);
+            //            if last_cell_key < country {
+            //                dbg!("could skip 1", &child_page);
+            //            }
+            //
+            //            if first_cell_key > country {
+            //                dbg!("could skip 2", &child_page);
+            //            }
+            //
+            //            for c in &child_page.cells {
+            //                if let Column::Str(idx_column) = c.record_body.columns.first().unwrap()
+            //                {
+            //                    let idx_column2 = idx_column.clone();
+            //                    if country == *idx_column {
+            //                        dbg!(&c.record_body.columns);
+            //                    }
+            //                    if idx_column2 > country {
+            //                        break;
+            //                    }
+            //                } else {
+            //                    todo!()
+            //                }
+            //            }
+            //        }
+            //    }
+            //
+            //    // rightmost
+            //    let rightmost_page = db.get_page(
+            //        ((root_page.page_header.rightmost_pointer.unwrap() - 1)
+            //            * db.header.page_size as u32)
+            //            .into(),
+            //        None,
+            //    )?;
+            //
+            //    let rightmost_page = match rightmost_page {
+            //        Page::InteriorIdx(page) => page,
+            //        _ => todo!(),
+            //    };
+            //
+            //    for c in rightmost_page.cells {
+            //        let child_page = db.get_page(
+            //            ((c.left_child_page_num - 1) * db.header.page_size as u32).into(),
+            //            None,
+            //        )?;
+            //        if let Page::LeafIndex(child_page) = child_page {
+            //            //maybe skip:
+            //            let first_cell_key: String = match &child_page
+            //                .cells
+            //                .first()
+            //                .unwrap()
+            //                .record_body
+            //                .columns
+            //                .first()
+            //                .unwrap()
+            //            {
+            //                Column::Str(key) => key.to_string(),
+            //                Column::I8(_) => todo!(),
+            //                Column::I16(_) => todo!(),
+            //                Column::I24(_) => todo!(),
+            //                Column::One => todo!(),
+            //                Column::Null => todo!(),
+            //            };
+            //
+            //            let last_cell_key: String = match &child_page
+            //                .cells
+            //                .last()
+            //                .unwrap()
+            //                .record_body
+            //                .columns
+            //                .first()
+            //                .unwrap()
+            //            {
+            //                Column::Str(key) => key.to_string(),
+            //                Column::I8(_) => todo!(),
+            //                Column::I16(_) => todo!(),
+            //                Column::I24(_) => todo!(),
+            //                Column::One => todo!(),
+            //                Column::Null => todo!(),
+            //            };
+            //
+            //            dbg!(&first_cell_key);
+            //            dbg!(&last_cell_key);
+            //            if last_cell_key < country {
+            //                dbg!("could skip 1", &child_page);
+            //            }
+            //
+            //            if first_cell_key > country {
+            //                dbg!("could skip 2", &child_page);
+            //            }
+            //
+            //            for c in &child_page.cells {
+            //                if let Column::Str(idx_column) = c.record_body.columns.first().unwrap()
+            //                {
+            //                    let idx_column2 = idx_column.clone();
+            //                    if country == *idx_column {
+            //                        dbg!(&c.record_body.columns);
+            //                    }
+            //                    if idx_column2 > country {
+            //                        break;
+            //                    }
+            //                } else {
+            //                    todo!()
+            //                }
+            //            }
+            //        }
+            //    }
+            //    // rightmost
+            //}
         }
         ".dbinfo" => {
             let file = File::open(&args[1])?;

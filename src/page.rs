@@ -19,6 +19,8 @@ pub struct PageHeader {
     pub num_cells: u16,
     #[allow(dead_code)]
     pub rightmost_pointer: Option<u32>,
+    #[allow(dead_code)]
+    pub page_offset: u64,
 }
 
 #[derive(Debug)]
@@ -53,6 +55,7 @@ pub struct InteriorIdxPage {
 
 #[derive(Debug)]
 pub struct LeafIdxPage {
+    #[allow(dead_code)]
     pub page_header: PageHeader,
     //pub cell_pointer_array: Vec<u16>,
     pub cells: Vec<IdxLeafCell>,
@@ -68,7 +71,9 @@ pub struct TableInfo {
 #[derive(Debug)]
 pub struct IdxInfo {
     pub root_page_num: u32,
+    #[allow(dead_code)]
     pub idx_name: String,
+    #[allow(dead_code)]
     pub columns: HashSet<String>,
 }
 
@@ -102,7 +107,7 @@ pub struct IdxInteriorCell {
     pub left_child_page_num: u32,
     //pub key_payload_size: i64,
     pub record_header: RecordHeader,
-    pub record_body: IdxRecordBody,
+    pub record_body: InteriorIdxRecordBody,
 }
 
 #[derive(Debug)]
@@ -110,7 +115,7 @@ pub struct IdxInteriorCell {
 pub struct IdxLeafCell {
     //pub key_payload_size: i64,
     pub record_header: RecordHeader,
-    pub record_body: IdxRecordBody,
+    pub record_body: LeafIdxRecordBody,
 }
 
 #[derive(Debug)]
@@ -168,6 +173,9 @@ impl RecordHeader {
                     let val = i32::from_be_bytes([0, buf[0], buf[1], buf[2]]);
                     columns.push(Column::I24(val));
                 }
+                ColumnType::Zero => {
+                    columns.push(Column::Zero);
+                }
                 ColumnType::One => {
                     columns.push(Column::One);
                 }
@@ -185,17 +193,15 @@ pub struct RecordBody {
 }
 
 #[derive(Debug)]
-pub struct IdxRecordBody {
+pub struct InteriorIdxRecordBody {
     pub columns: Vec<Column>,
+    #[allow(dead_code)]
     pub rowid: i64,
 }
 
-impl RecordBody {
-    pub fn new() -> Self {
-        Self {
-            columns: Vec::new(),
-        }
-    }
+#[derive(Debug)]
+pub struct LeafIdxRecordBody {
+    pub columns: Vec<Column>,
 }
 
 pub type Str = String;
@@ -209,18 +215,20 @@ pub enum ColumnType {
     I8,
     I16,
     I24,
+    Zero,
     One,
     Null,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum Column {
+    Null,
     Str(Str),
     I8(I8),
     I16(I16),
     I24(I24),
+    Zero,
     One,
-    Null,
 }
 
 impl Display for Column {
@@ -230,8 +238,24 @@ impl Display for Column {
             Column::I8(i) => write!(f, "{}", i),
             Column::I16(i) => write!(f, "{}", i),
             Column::I24(i) => write!(f, "{}", i),
+            Column::Zero => write!(f, "0"),
             Column::One => write!(f, "1"),
             Column::Null => write!(f, "NULL"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let c1 = Column::Str(String::from("test"));
+        let c2 = Column::Null;
+        let c3 = Column::Str(String::from("zest"));
+
+        assert!(c1 > c2);
+        assert!(c1 < c3);
     }
 }

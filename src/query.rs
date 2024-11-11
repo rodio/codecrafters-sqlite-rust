@@ -109,6 +109,7 @@ impl CreateTableQuery {
 #[derive(Debug)]
 pub struct CreateIdxQuery {
     pub idx_name: String,
+    #[allow(dead_code)]
     pub table_name: String,
     pub columns: HashSet<String>,
 }

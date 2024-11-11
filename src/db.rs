@@ -1,10 +1,12 @@
+use core::panic;
 use std::{collections::BTreeMap, fs::File, os::unix::fs::FileExt};
 
 use crate::{
     page::{
-        Column, FirstPage, IdxInfo, IdxInteriorCell, IdxLeafCell, IdxRecordBody, InteriorIdxPage,
-        InteriorTablePage, LeafIdxPage, LeafTableCell, LeafTablePage, Page, PageHeader, PageType,
-        RecordBody, RecordHeader, TableInfo, TableInteriorCell,
+        Column, FirstPage, IdxInfo, IdxInteriorCell, IdxLeafCell, InteriorIdxPage,
+        InteriorIdxRecordBody, InteriorTablePage, LeafIdxPage, LeafIdxRecordBody, LeafTableCell,
+        LeafTablePage, Page, PageHeader, PageType, RecordBody, RecordHeader, TableInfo,
+        TableInteriorCell,
     },
     query::{CreateQuery, SelectQuery},
     util::read_varint,
@@ -175,7 +177,8 @@ impl Db {
             }
             PageType::LeafIndex => {
                 let cells =
-                    Self::get_leaf_idx_cells(cell_pointer_array, &page_header, file, page_offset)?;
+                    Self::get_leaf_idx_cells(cell_pointer_array, &page_header, file, page_offset)
+                        .map_err(|e| anyhow!("can't get leaf idx cells: {e}"))?;
                 Ok(Page::LeafIndex(LeafIdxPage { page_header, cells }))
             }
         }
@@ -193,25 +196,26 @@ impl Db {
             let mut pointer = *pointer as u64;
             pointer += page_offset;
             let mut current_offset = 0_u64;
+
             // payload size, skipping
             file.read_exact_at(&mut buf_varint, pointer + current_offset)
-                .map_err(|e| anyhow!("can't read number of bytes of payload of interior idx cell: {e} at pointer {pointer}"))?;
+                .map_err(|e| anyhow!("can't read number of bytes of payload of leaf idx cell: {e} at pointer {pointer}"))?;
             let (_payload_size, o) = read_varint(&buf_varint);
             current_offset += o as u64;
 
             // record header
-            let (record_header, o) = RecordHeader::from_file(file, pointer + current_offset)?;
+            let (record_header, o) = RecordHeader::from_file(file, pointer + current_offset)
+                .map_err(|e| anyhow!("can't read record header of leaf idx page: {e}"))?;
             current_offset += o;
 
-            let (columns, o) = record_header.read_columns(file, pointer + current_offset)?;
-            current_offset += o;
-
-            file.read_exact_at(&mut buf_varint, pointer + current_offset)?;
-            let (rowid, _) = read_varint(&buf_varint);
+            // columns
+            let (columns, _) = record_header
+                .read_columns(file, pointer + current_offset)
+                .map_err(|e| anyhow!("can't read columns of leaf idx page {e} "))?;
 
             cells.push(IdxLeafCell {
                 record_header,
-                record_body: IdxRecordBody { columns, rowid },
+                record_body: LeafIdxRecordBody { columns },
             })
         }
 
@@ -256,7 +260,7 @@ impl Db {
             cells.push(IdxInteriorCell {
                 left_child_page_num,
                 record_header,
-                record_body: IdxRecordBody { columns, rowid },
+                record_body: InteriorIdxRecordBody { columns, rowid },
             })
         }
 
@@ -281,7 +285,7 @@ impl Db {
             let left_child_page_num = u32::from_be_bytes(buf_u32);
 
             // rowid:
-            file.read_exact_at(&mut buf_varint, pointer)
+            file.read_exact_at(&mut buf_varint, pointer + 4)
                 .map_err(|e| anyhow!("can't read cell rowid: {e} at pointer {pointer}"))?;
             let (rowid, _) = read_varint(&buf_varint);
 
@@ -317,9 +321,6 @@ impl Db {
             file.read_exact_at(&mut buf, pointer + current_offset)
                 .map_err(|e| anyhow!("can't read cell rowid: {e} at pointer {pointer}"))?;
             let (rowid, o) = read_varint(&buf);
-            if rowid == 19952624 || rowid == 5796848 {
-                dbg!(o);
-            }
             current_offset += o as u64;
 
             let (record_header, o) = RecordHeader::from_file(file, pointer + current_offset)?;
@@ -369,10 +370,35 @@ impl Db {
             page_type,
             num_cells,
             rightmost_pointer,
+            page_offset: offset,
         })
     }
 
     pub fn execute_select(&self, query: SelectQuery) -> Result<Vec<Vec<String>>> {
+        let idx_info = self.idx_infos.get(&query.table_name);
+        if idx_info.is_some() {
+            let table_name = &query.table_name;
+
+            let table_info = self.table_infos.get(table_name).unwrap();
+
+            let rowids = self
+                .query_idx(table_name, &query.where_value.clone().unwrap())?
+                .unwrap();
+
+            let root_offset = (table_info.root_page_num - 1) as u64 * self.header.page_size as u64;
+            let root_page = self.get_page(root_offset, None)?;
+
+            let mut res: Vec<Vec<String>> = Vec::new();
+            for rowid in &rowids {
+                let r = self.get_row(&root_page, *rowid, table_info, &query)?;
+                if !r.is_empty() {
+                    res.push(r);
+                }
+            }
+
+            return Ok(res);
+        }
+
         let table_info = self
             .table_infos
             .get(&query.table_name)
@@ -399,7 +425,6 @@ impl Db {
         let mut res = Vec::new();
         for cell in &interior_page.cells {
             let pointer = (cell.left_child_page_num - 1) as u64 * self.header.page_size as u64;
-            //dbg!(pointer / 4096);
             let child = self.get_page(pointer, None)?;
             match child {
                 Page::LeafTable(leaf) => {
@@ -434,7 +459,6 @@ impl Db {
                 dbg!("other type");
             }
         }
-        //dbg!(rightmost);
 
         Ok(res)
     }
@@ -463,6 +487,7 @@ impl Db {
                     Column::I8(i) => i.to_string(),
                     Column::I16(i) => i.to_string(),
                     Column::I24(i) => i.to_string(),
+                    Column::Zero => String::from("0"),
                     Column::One => String::from("1"),
                     Column::Null => cell.rowid.to_string(),
                 };
@@ -482,6 +507,267 @@ impl Db {
         }
 
         Ok(result)
+    }
+
+    pub fn query_idx(&self, table_name: &str, looking_for: &String) -> Result<Option<Vec<i64>>> {
+        let idx_info = self
+            .idx_infos
+            .get(table_name)
+            .ok_or(anyhow!("no index for {table_name}"))?;
+
+        let root_page = self.get_page(
+            (idx_info.root_page_num - 1) as u64 * self.header.page_size as u64,
+            None,
+        )?;
+
+        self._query_idx(root_page, looking_for)
+    }
+
+    fn _query_idx(&self, root_page: Page, looking_for: &String) -> Result<Option<Vec<i64>>> {
+        match root_page {
+            Page::LeafTable(_) => panic!("index root page is LeafTablePage"),
+            Page::InteriorTable(_) => panic!("index root page is InteriorTablePage"),
+            Page::LeafIndex(leaf_idx_page) => self.query_leaf_idx(leaf_idx_page, looking_for),
+            Page::InteriorIdx(interior_idx_page) => {
+                self.query_interior_idx(interior_idx_page, looking_for)
+            }
+        }
+    }
+
+    fn query_interior_idx(
+        &self,
+        page: InteriorIdxPage,
+        looking_for: &String,
+    ) -> Result<Option<Vec<i64>>> {
+        if page.cells.is_empty() {
+            panic!("page has no cells");
+        };
+
+        if page.cells.first().unwrap().record_body.columns.is_empty() {
+            panic!("no keys in idx");
+        };
+
+        if page.cells.first().unwrap().record_body.columns.len() != 2 {
+            todo!("more than one key in index");
+        };
+
+        let mut res = Vec::new();
+
+        let first_key = page
+            .cells
+            .first()
+            .unwrap()
+            .record_body
+            .columns
+            .first()
+            .unwrap();
+
+        let last_key = page
+            .cells
+            .last()
+            .unwrap()
+            .record_body
+            .columns
+            .first()
+            .unwrap();
+
+        if *first_key <= Column::Str(looking_for.clone())
+            && *last_key >= Column::Str(looking_for.clone())
+        {
+            for cell in page.cells {
+                if cell.record_body.columns.is_empty() {
+                    todo!("no keys in cell");
+                }
+
+                if cell.record_body.columns.len() != 2 {
+                    todo!("more than one key in index");
+                }
+
+                let key = cell.record_body.columns.first().unwrap();
+
+                if *key == Column::Str(looking_for.clone()) {
+                    let rowid = match cell.record_body.columns.last().unwrap() {
+                        Column::I8(i) => *i as i64,
+                        Column::I16(i) => *i as i64,
+                        Column::I24(i) => *i as i64,
+                        _ => panic!("rowid is not int"),
+                    };
+                    res.push(rowid);
+                }
+
+                let child_page = self.get_page(
+                    (cell.left_child_page_num - 1) as u64 * self.header.page_size as u64,
+                    None,
+                )?;
+
+                if let Some(mut from_children) = self._query_idx(child_page, looking_for)? {
+                    res.append(&mut from_children);
+                }
+            }
+        } else {
+            let offset = (page.page_header.rightmost_pointer.unwrap() - 1) as u64
+                * self.header.page_size as u64;
+            let rightmost_page = self
+                .get_page(offset, None)
+                .map_err(|e| anyhow!("can't get rightmost page: {e}"))?;
+
+            if let Some(mut from_rightmost) = self._query_idx(rightmost_page, looking_for)? {
+                res.append(&mut from_rightmost);
+            }
+        }
+
+        Ok(Some(res))
+    }
+
+    fn query_leaf_idx(&self, page: LeafIdxPage, looking_for: &String) -> Result<Option<Vec<i64>>> {
+        if page.cells.is_empty() {
+            panic!("page has no cells");
+        };
+
+        if page.cells.first().unwrap().record_body.columns.is_empty() {
+            panic!("no keys in idx");
+        };
+
+        if page.cells.first().unwrap().record_body.columns.len() != 2 {
+            todo!("more than one key in index");
+        };
+
+        let mut res = Vec::new();
+
+        //let first_key = page.cells.first().unwrap();
+        //let first_key = first_key.record_body.columns.first().unwrap();
+        //let first_key = match first_key {
+        //    Column::Str(s) => s,
+        //    k => todo!("key is not str: {k}"),
+        //};
+        //
+        //if first_key > looking_for {
+        //    return Ok(None);
+        //};
+        //
+        //let last_key = match page
+        //    .cells
+        //    .last()
+        //    .unwrap()
+        //    .record_body
+        //    .columns
+        //    .first()
+        //    .unwrap()
+        //{
+        //    Column::Str(s) => s,
+        //    _ => todo!("key is not str"),
+        //};
+        //
+        //if (first_key > looking_for && last_key > looking_for) || last_key < looking_for {
+        //    return Ok(None);
+        //};
+
+        for cell in &page.cells {
+            if cell.record_body.columns.is_empty() {
+                todo!("no keys in cell");
+            }
+
+            if cell.record_body.columns.len() != 2 {
+                todo!("more than one key in index");
+            }
+
+            let key = cell.record_body.columns.first().unwrap();
+
+            if *key == Column::Str(looking_for.clone()) {
+                let rowid = match cell.record_body.columns.last().unwrap() {
+                    Column::I8(i) => *i as i64,
+                    Column::I16(i) => *i as i64,
+                    Column::I24(i) => *i as i64,
+                    _ => panic!("rowid is not int"),
+                };
+                res.push(rowid);
+            }
+        }
+
+        Ok(Some(res))
+    }
+
+    pub fn get_row(
+        &self,
+        page: &Page,
+        rowid: i64,
+        table_info: &TableInfo,
+        query: &SelectQuery,
+    ) -> Result<Vec<String>> {
+        match page {
+            Page::LeafTable(leaf_page) => self.get_row_leaf(leaf_page, rowid, table_info, query),
+            Page::InteriorTable(interior_page) => {
+                self.get_row_interior(interior_page, rowid, table_info, query)
+            }
+            _ => panic!("can't get row from an index page"),
+        }
+    }
+
+    fn get_row_interior(
+        &self,
+        page: &InteriorTablePage,
+        rowid: i64,
+        table_info: &TableInfo,
+        query: &SelectQuery,
+    ) -> Result<Vec<String>> {
+        //let first_rowid = page.cells.first().unwrap().rowid;
+        let last_rowid = page.cells.last().unwrap().rowid;
+
+        if last_rowid >= rowid {
+            for cell in &page.cells {
+                if rowid <= cell.rowid {
+                    let page = self.get_page(
+                        (cell.left_child_page_num - 1) as u64 * self.header.page_size as u64,
+                        None,
+                    )?;
+                    return self.get_row(&page, rowid, table_info, query);
+                }
+            }
+        } else {
+            let page = self.get_page(
+                (page.page_header.rightmost_pointer.unwrap() - 1) as u64
+                    * self.header.page_size as u64,
+                None,
+            )?;
+            return self.get_row(&page, rowid, table_info, query);
+        }
+
+        Ok(vec![])
+    }
+
+    fn get_row_leaf(
+        &self,
+        page: &LeafTablePage,
+        rowid: i64,
+        table_info: &TableInfo,
+        query: &SelectQuery,
+    ) -> Result<Vec<String>> {
+        let mut row = vec![String::from(""); query.columns.len()];
+        for cell in &page.cells {
+            if cell.rowid == rowid {
+                for column_name in table_info.column_orders.keys() {
+                    let order = table_info.column_orders[column_name];
+                    let column = &cell.record_body.columns[order];
+
+                    let column_value = match column {
+                        Column::Str(s) => s.to_string(),
+                        Column::I8(i) => i.to_string(),
+                        Column::I16(i) => i.to_string(),
+                        Column::I24(i) => i.to_string(),
+                        Column::Zero => String::from("0"),
+                        Column::One => String::from("1"),
+                        Column::Null => cell.rowid.to_string(),
+                    };
+
+                    if query.columns.contains_key(column_name) {
+                        row[*query.columns.get(column_name).unwrap()] = column_value;
+                    }
+                }
+                return Ok(row);
+            }
+        }
+
+        Ok(vec![])
     }
 }
 

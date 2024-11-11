@@ -1,0 +1,1335 @@
+warning: unused import: `Str`
+ --> src/main.rs:8:26
+  |
+8 | use page::{Column, Page, Str};
+  |                          ^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: field `0` is never read
+  --> src/page.rs:28:15
+   |
+28 |     LeafIndex(LeafIdxPage),
+   |     --------- ^^^^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `#[warn(dead_code)]` on by default
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+28 |     LeafIndex(()),
+   |               ~~
+
+warning: fields `page_header` and `cells` are never read
+  --> src/page.rs:56:9
+   |
+55 | pub struct LeafIdxPage {
+   |            ----------- fields in this struct
+56 |     pub page_header: PageHeader,
+   |         ^^^^^^^^^^^
+57 |     //pub cell_pointer_array: Vec<u16>,
+58 |     pub cells: Vec<IdxLeafCell>,
+   |         ^^^^^
+   |
+   = note: `LeafIdxPage` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `idx_name` and `columns` are never read
+  --> src/page.rs:71:9
+   |
+69 | pub struct IdxInfo {
+   |            ------- fields in this struct
+70 |     pub root_page_num: u32,
+71 |     pub idx_name: String,
+   |         ^^^^^^^^
+72 |     pub columns: HashSet<String>,
+   |         ^^^^^^^
+   |
+   = note: `IdxInfo` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: field `rowid` is never read
+   --> src/page.rs:190:9
+    |
+188 | pub struct IdxRecordBody {
+    |            ------------- field in this struct
+189 |     pub columns: Vec<Column>,
+190 |     pub rowid: i64,
+    |         ^^^^^
+    |
+    = note: `IdxRecordBody` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: associated function `new` is never used
+   --> src/page.rs:194:12
+    |
+193 | impl RecordBody {
+    | --------------- associated function in this implementation
+194 |     pub fn new() -> Self {
+    |            ^^^
+
+warning: field `table_name` is never read
+   --> src/query.rs:112:9
+    |
+110 | pub struct CreateIdxQuery {
+    |            -------------- field in this struct
+111 |     pub idx_name: String,
+112 |     pub table_name: String,
+    |         ^^^^^^^^^^
+    |
+    = note: `CreateIdxQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: `codecrafters-sqlite` (bin "codecrafters-sqlite") generated 7 warnings (run `cargo fix --bin "codecrafters-sqlite"` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/codecrafters-sqlite companies.db .test`
+[src/main.rs:40:17] rightmost_page = InteriorIdx(
+    InteriorIdxPage {
+        page_header: PageHeader {
+            page_type: InteriorIndex,
+            num_cells: 60,
+            rightmost_pointer: Some(
+                1910,
+            ),
+        },
+        cells: [
+            IdxInteriorCell {
+                left_child_page_num: 1848,
+                record_header: RecordHeader {
+                    column_types: [
+                        27,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "myanmar",
+                        ),
+                        I24(
+                            3609466,
+                        ),
+                    ],
+                    rowid: 10,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1851,
+                record_header: RecordHeader {
+                    column_types: [
+                        27,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "myanmar",
+                        ),
+                        I24(
+                            6006285,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1852,
+                record_header: RecordHeader {
+                    column_types: [
+                        27,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "namibia",
+                        ),
+                        I24(
+                            2321799,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1853,
+                record_header: RecordHeader {
+                    column_types: [
+                        27,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "namibia",
+                        ),
+                        I24(
+                            7091184,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1854,
+                record_header: RecordHeader {
+                    column_types: [
+                        23,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "nepal",
+                        ),
+                        I24(
+                            1279548,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1855,
+                record_header: RecordHeader {
+                    column_types: [
+                        23,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "nepal",
+                        ),
+                        I24(
+                            2574727,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1856,
+                record_header: RecordHeader {
+                    column_types: [
+                        23,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "nepal",
+                        ),
+                        I24(
+                            3882867,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1857,
+                record_header: RecordHeader {
+                    column_types: [
+                        23,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "nepal",
+                        ),
+                        I24(
+                            5136187,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1858,
+                record_header: RecordHeader {
+                    column_types: [
+                        23,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "nepal",
+                        ),
+                        I24(
+                            6566279,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1859,
+                record_header: RecordHeader {
+                    column_types: [
+                        53,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "netherlands antilles",
+                        ),
+                        I24(
+                            4026504,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1860,
+                record_header: RecordHeader {
+                    column_types: [
+                        39,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "new caledonia",
+                        ),
+                        I24(
+                            5155081,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1861,
+                record_header: RecordHeader {
+                    column_types: [
+                        31,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "nicaragua",
+                        ),
+                        I24(
+                            2331026,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1862,
+                record_header: RecordHeader {
+                    column_types: [
+                        31,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "nicaragua",
+                        ),
+                        I24(
+                            5303061,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1863,
+                record_header: RecordHeader {
+                    column_types: [
+                        21,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "oman",
+                        ),
+                        I24(
+                            278117,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1864,
+                record_header: RecordHeader {
+                    column_types: [
+                        21,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "oman",
+                        ),
+                        I24(
+                            1987272,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1865,
+                record_header: RecordHeader {
+                    column_types: [
+                        21,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "oman",
+                        ),
+                        I24(
+                            3790591,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1866,
+                record_header: RecordHeader {
+                    column_types: [
+                        21,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "oman",
+                        ),
+                        I24(
+                            5334460,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1867,
+                record_header: RecordHeader {
+                    column_types: [
+                        21,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "oman",
+                        ),
+                        I24(
+                            6980008,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1868,
+                record_header: RecordHeader {
+                    column_types: [
+                        31,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "palestine",
+                        ),
+                        I24(
+                            3344793,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1869,
+                record_header: RecordHeader {
+                    column_types: [
+                        31,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "palestine",
+                        ),
+                        I24(
+                            6956687,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1870,
+                record_header: RecordHeader {
+                    column_types: [
+                        45,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "papua new guinea",
+                        ),
+                        I24(
+                            4447428,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1871,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "paraguay",
+                        ),
+                        I24(
+                            1179305,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1872,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "paraguay",
+                        ),
+                        I24(
+                            3465307,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1873,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "paraguay",
+                        ),
+                        I24(
+                            5652925,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1874,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "puerto rico",
+                        ),
+                        I24(
+                            452598,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1875,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "puerto rico",
+                        ),
+                        I24(
+                            1632804,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1876,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "puerto rico",
+                        ),
+                        I24(
+                            2710772,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1877,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "puerto rico",
+                        ),
+                        I24(
+                            3776557,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1878,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "puerto rico",
+                        ),
+                        I24(
+                            4804171,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1879,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "puerto rico",
+                        ),
+                        I24(
+                            5839580,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1880,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "puerto rico",
+                        ),
+                        I24(
+                            6941970,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1881,
+                record_header: RecordHeader {
+                    column_types: [
+                        25,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "rwanda",
+                        ),
+                        I24(
+                            5226500,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1882,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "saint lucia",
+                        ),
+                        I24(
+                            681177,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1883,
+                record_header: RecordHeader {
+                    column_types: [
+                        35,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "saint lucia",
+                        ),
+                        I24(
+                            5327933,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1884,
+                record_header: RecordHeader {
+                    column_types: [
+                        23,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "samoa",
+                        ),
+                        I24(
+                            4183776,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1885,
+                record_header: RecordHeader {
+                    column_types: [
+                        27,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "senegal",
+                        ),
+                        I24(
+                            1176505,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1886,
+                record_header: RecordHeader {
+                    column_types: [
+                        27,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "senegal",
+                        ),
+                        I24(
+                            4147420,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1887,
+                record_header: RecordHeader {
+                    column_types: [
+                        27,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "senegal",
+                        ),
+                        I24(
+                            6463981,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1888,
+                record_header: RecordHeader {
+                    column_types: [
+                        37,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "sierra leone",
+                        ),
+                        I24(
+                            2426072,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1889,
+                record_header: RecordHeader {
+                    column_types: [
+                        23,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "sudan",
+                        ),
+                        I24(
+                            837510,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1890,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "suriname",
+                        ),
+                        I24(
+                            650808,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1891,
+                record_header: RecordHeader {
+                    column_types: [
+                        31,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "swaziland",
+                        ),
+                        I24(
+                            6262917,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1892,
+                record_header: RecordHeader {
+                    column_types: [
+                        23,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "syria",
+                        ),
+                        I24(
+                            4630982,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1893,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "tanzania",
+                        ),
+                        I24(
+                            218497,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1894,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "tanzania",
+                        ),
+                        I24(
+                            1778855,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1895,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "tanzania",
+                        ),
+                        I24(
+                            3391790,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1896,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "tanzania",
+                        ),
+                        I24(
+                            5167146,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1897,
+                record_header: RecordHeader {
+                    column_types: [
+                        29,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "tanzania",
+                        ),
+                        I24(
+                            6824761,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1898,
+                record_header: RecordHeader {
+                    column_types: [
+                        51,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "trinidad and tobago",
+                        ),
+                        I24(
+                            202378,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1899,
+                record_header: RecordHeader {
+                    column_types: [
+                        51,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "trinidad and tobago",
+                        ),
+                        I24(
+                            2459661,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1900,
+                record_header: RecordHeader {
+                    column_types: [
+                        51,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "trinidad and tobago",
+                        ),
+                        I24(
+                            4589337,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1901,
+                record_header: RecordHeader {
+                    column_types: [
+                        51,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "trinidad and tobago",
+                        ),
+                        I24(
+                            6964428,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1902,
+                record_header: RecordHeader {
+                    column_types: [
+                        25,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "uganda",
+                        ),
+                        I24(
+                            220459,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1903,
+                record_header: RecordHeader {
+                    column_types: [
+                        25,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "uganda",
+                        ),
+                        I24(
+                            1915440,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1904,
+                record_header: RecordHeader {
+                    column_types: [
+                        25,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "uganda",
+                        ),
+                        I24(
+                            3692824,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1905,
+                record_header: RecordHeader {
+                    column_types: [
+                        25,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "uganda",
+                        ),
+                        I24(
+                            5509225,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1906,
+                record_header: RecordHeader {
+                    column_types: [
+                        25,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "uganda",
+                        ),
+                        I24(
+                            7161555,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1907,
+                record_header: RecordHeader {
+                    column_types: [
+                        33,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "uzbekistan",
+                        ),
+                        I24(
+                            7047179,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1908,
+                record_header: RecordHeader {
+                    column_types: [
+                        25,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "zambia",
+                        ),
+                        I24(
+                            1674711,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+            IdxInteriorCell {
+                left_child_page_num: 1909,
+                record_header: RecordHeader {
+                    column_types: [
+                        25,
+                        3,
+                    ],
+                },
+                record_body: IdxRecordBody {
+                    columns: [
+                        Str(
+                            "zambia",
+                        ),
+                        I24(
+                            5852219,
+                        ),
+                    ],
+                    rowid: 0,
+                },
+            },
+        ],
+    },
+)
+[src/main.rs:43:21] &c = IdxInteriorCell {
+    left_child_page_num: 1849,
+    record_header: RecordHeader {
+        column_types: [
+            27,
+            3,
+        ],
+    },
+    record_body: IdxRecordBody {
+        columns: [
+            Str(
+                "myanmar",
+            ),
+            I24(
+                1332971,
+            ),
+        ],
+        rowid: 13,
+    },
+}
+[src/main.rs:44:21] &root_page.page_header.rightmost_pointer = Some(
+    1850,
+)
+[src/main.rs:85:25] &first_cell_key = "afghanistan"
+[src/main.rs:86:25] &last_cell_key = "mozambique"
+[src/main.rs:100:37] &c.record_body.columns = [
+    Str(
+        "mongolia",
+    ),
+    I24(
+        1614471,
+    ),
+]
+[src/main.rs:100:37] &c.record_body.columns = [
+    Str(
+        "mongolia",
+    ),
+    I24(
+        5264292,
+    ),
+]
